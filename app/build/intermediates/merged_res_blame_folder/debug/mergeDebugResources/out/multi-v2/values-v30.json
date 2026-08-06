@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.habitflow.app-mergeDebugResources-50:/values-v30/values-v30.xml",
+            "map": [
+                {
+                    "source": "/Users/caobahung/.gradle/caches/8.11.1/transforms/58e680975b869a1f034aa36ae97b3a70/transformed/material3-release/res/values-v30/values-v30.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "72",
+                        "endOffsets": "123"
+                    }
+                }
+            ]
+        }
+    ]
+}
