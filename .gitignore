@@ -20,9 +20,9 @@ Desktop.ini
 # Android & Gradle Build Artifacts
 # ==========================================
 .gradle/
-/build/
-app/build/
-/captures/
+**/build/
+build/
+captures/
 .externalNativeBuild/
 .cxx/
 .kotlin/
