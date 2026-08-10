@@ -50,9 +50,19 @@ interface ReminderDao {
     @Query("DELETE FROM reminders") suspend fun clear()
 }
 
+@Dao
+interface UserStatsDao {
+    @Query("SELECT * FROM user_stats WHERE id = 'current_user'")
+    fun observe(): Flow<UserStatsEntity?>
+    @Query("SELECT * FROM user_stats WHERE id = 'current_user'")
+    suspend fun get(): UserStatsEntity?
+    @Upsert suspend fun upsert(item: UserStatsEntity)
+    @Query("DELETE FROM user_stats") suspend fun clear()
+}
+
 @Database(
-    entities = [HabitEntity::class, OccurrenceEntity::class, GoalEntity::class, ReminderEntity::class],
-    version = 3,
+    entities = [HabitEntity::class, OccurrenceEntity::class, GoalEntity::class, ReminderEntity::class, UserStatsEntity::class],
+    version = 4,
     exportSchema = false,
 )
 abstract class HabitFlowDatabase : RoomDatabase() {
@@ -60,6 +70,7 @@ abstract class HabitFlowDatabase : RoomDatabase() {
     abstract fun occurrenceDao(): OccurrenceDao
     abstract fun goalDao(): GoalDao
     abstract fun reminderDao(): ReminderDao
+    abstract fun userStatsDao(): UserStatsDao
 
     companion object {
         @Volatile private var instance: HabitFlowDatabase? = null
