@@ -14,6 +14,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val habits = repository.habits.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val goals = repository.goals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val occurrences = repository.occurrences.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val userStats = repository.userStats.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserStatsEntity())
+
     val stats = repository.occurrences.combine(repository.habits) { items, _ ->
         HabitStatisticsCalculator.calculate(items)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HabitStats())
@@ -21,7 +23,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null) = viewModelScope.launch { repository.addHabit(name, description, scheduledDays, scheduledTime) }
     fun archiveHabit(id: String) = viewModelScope.launch { repository.archiveHabit(id) }
     fun deleteHabit(id: String) = viewModelScope.launch { repository.deleteHabit(id) }
-    fun mark(id: String, status: OccurrenceStatus) = viewModelScope.launch { repository.mark(id, status) }
+    
+    fun mark(id: String, status: OccurrenceStatus) = viewModelScope.launch { 
+        repository.mark(id, status)
+        if (status == OccurrenceStatus.COMPLETED) {
+            val habitStats = stats.value
+            GamificationManager.processCompletion(repository, habitStats.currentStreak)
+        }
+    }
+
+    fun useStreakFreeze(habitId: String) = viewModelScope.launch {
+        if (GamificationManager.useStreakFreeze(repository)) {
+            repository.mark(habitId, OccurrenceStatus.FROZEN)
+        }
+    }
     fun unmark(id: String, dateEpochDay: Long) = viewModelScope.launch { repository.unmark(id, dateEpochDay) }
     fun addGoal(name: String, target: Double, type: GoalMetricType) = viewModelScope.launch { repository.addGoal(name, target, type) }
     fun addGoalProgress(goal: GoalEntity, value: Double) = viewModelScope.launch { repository.addGoalProgress(goal, value) }
