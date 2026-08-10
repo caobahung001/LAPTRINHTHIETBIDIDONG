@@ -12,6 +12,7 @@ class HabitRepository(private val db: HabitFlowDatabase) {
     val habits: Flow<List<HabitEntity>> = db.habitDao().observeActive()
     val occurrences: Flow<List<OccurrenceEntity>> = db.occurrenceDao().observeAll()
     val goals: Flow<List<GoalEntity>> = db.goalDao().observeActive()
+    val userStats: Flow<UserStatsEntity?> = db.userStatsDao().observe()
 
     suspend fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null) {
         require(name.isNotBlank())
@@ -19,12 +20,16 @@ class HabitRepository(private val db: HabitFlowDatabase) {
     }
     suspend fun archiveHabit(id: String) = db.habitDao().archive(id)
     suspend fun deleteHabit(id: String) = db.habitDao().delete(id)
-    suspend fun mark(habitId: String, status: OccurrenceStatus, value: Double? = null) {
-        db.occurrenceDao().upsert(OccurrenceEntity(habitId, LocalDate.now().toEpochDay(), status, value))
+    suspend fun mark(habitId: String, status: OccurrenceStatus, value: Double? = null, dateEpochDay: Long = LocalDate.now().toEpochDay()) {
+        db.occurrenceDao().upsert(OccurrenceEntity(habitId, dateEpochDay, status, value))
     }
     suspend fun unmark(habitId: String, dateEpochDay: Long) {
         db.occurrenceDao().delete(habitId, dateEpochDay)
     }
+
+    suspend fun getUserStats(): UserStatsEntity = db.userStatsDao().get() ?: UserStatsEntity().also { db.userStatsDao().upsert(it) }
+    suspend fun updateUserStats(stats: UserStatsEntity) = db.userStatsDao().upsert(stats)
+
     suspend fun addGoal(name: String, target: Double, type: GoalMetricType) {
         require(name.isNotBlank() && target > 0)
         db.goalDao().upsert(GoalEntity(UUID.randomUUID().toString(), name.trim(), type, target,
@@ -38,17 +43,18 @@ class HabitRepository(private val db: HabitFlowDatabase) {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = false }
     suspend fun exportJson(): String = json.encodeToString(BackupData(
         habits = db.habitDao().all(), occurrences = db.occurrenceDao().all(),
-        goals = db.goalDao().all(), reminders = db.reminderDao().all()))
+        goals = db.goalDao().all(), reminders = db.reminderDao().all(),
+        userStats = db.userStatsDao().get()))
 
     suspend fun restoreJson(text: String) {
         val data = json.decodeFromString<BackupData>(text)
-        require(data.version == 1) { "Phiên bản backup không được hỗ trợ" }
         db.withTransaction {
-            db.reminderDao().clear(); db.goalDao().clear(); db.occurrenceDao().clear(); db.habitDao().clear()
+            db.userStatsDao().clear(); db.reminderDao().clear(); db.goalDao().clear(); db.occurrenceDao().clear(); db.habitDao().clear()
             db.habitDao().upsertAll(data.habits)
             db.occurrenceDao().upsertAll(data.occurrences)
             db.goalDao().upsertAll(data.goals)
             db.reminderDao().upsertAll(data.reminders)
+            data.userStats?.let { db.userStatsDao().upsert(it) }
         }
     }
 }

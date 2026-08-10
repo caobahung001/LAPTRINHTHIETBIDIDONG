@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
-@Serializable enum class OccurrenceStatus { PENDING, COMPLETED, MISSED, SKIPPED }
+@Serializable enum class OccurrenceStatus { PENDING, COMPLETED, MISSED, SKIPPED, FROZEN }
 @Serializable enum class GoalMetricType { OCCURRENCE_COUNT, ACCUMULATED_VALUE }
 
 @Serializable
@@ -41,6 +41,16 @@ data class OccurrenceEntity(
     val completedValue: Double? = null,
     val note: String? = null,
     val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Serializable
+@Entity(tableName = "user_stats")
+data class UserStatsEntity(
+    @PrimaryKey val id: String = "current_user",
+    val xp: Long = 0,
+    val level: Int = 1,
+    val streakFreezes: Int = 0,
+    val lastAwardedStreakFreezeEpochDay: Long = 0,
 )
 
 @Serializable
@@ -79,19 +89,23 @@ data class ReminderEntity(
 
 @Serializable
 data class BackupData(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportedAt: Long = System.currentTimeMillis(),
     val habits: List<HabitEntity>,
     val occurrences: List<OccurrenceEntity>,
     val goals: List<GoalEntity>,
     val reminders: List<ReminderEntity>,
+    val userStats: UserStatsEntity? = null,
 )
 
 data class HabitStats(
     val completed: Int = 0,
     val missed: Int = 0,
     val skipped: Int = 0,
+    val frozen: Int = 0,
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
     val completionRate: Double = 0.0,
+    val weeklyCompletionRate: Double = 0.0,
+    val monthlyCompletionRate: Double = 0.0,
 )

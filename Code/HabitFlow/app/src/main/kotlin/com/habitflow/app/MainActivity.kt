@@ -10,18 +10,21 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.format.DateTimeFormatter
 import java.time.YearMonth
@@ -70,6 +73,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
 private fun TodayScreen(vm: MainViewModel) {
     val habits by vm.habits.collectAsStateWithLifecycle()
     val occurrences by vm.occurrences.collectAsStateWithLifecycle()
+    val userStats by vm.userStats.collectAsStateWithLifecycle()
 
     // Lấy ngày hôm nay và lọc thói quen
     val today = remember { LocalDate.now() }
@@ -106,6 +110,42 @@ private fun TodayScreen(vm: MainViewModel) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // XP and Level Header
+        userStats?.let { stats ->
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(stats.level.toString(), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleMedium)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Cấp độ ${stats.level}", style = MaterialTheme.typography.labelLarge)
+                            Text("${stats.xp} XP", style = MaterialTheme.typography.labelMedium)
+                        }
+                        val xpForNext = GamificationManager.getXpForNextLevel(stats.level)
+                        val xpForCurrent = GamificationManager.getXpForNextLevel(stats.level - 1)
+                        val progress = (stats.xp - xpForCurrent).toFloat() / (xpForNext - xpForCurrent).toFloat()
+                        LinearProgressIndicator(
+                            progress = { progress.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            strokeCap = StrokeCap.Round
+                        )
+                    }
+                    if (stats.streakFreezes > 0) {
+                        Spacer(Modifier.width(12.dp))
+                        Text("❄️ ${stats.streakFreezes}", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+        }
+
         Text(dateString, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.secondary)
         Text("Hôm nay", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(12.dp))
@@ -121,6 +161,7 @@ private fun TodayScreen(vm: MainViewModel) {
                 val cardColor = when (todayOccurrence?.status) {
                     OccurrenceStatus.COMPLETED -> Color(0xFFC8E6C9)
                     OccurrenceStatus.SKIPPED -> Color(0xFFE1BEE7)
+                    OccurrenceStatus.FROZEN -> Color(0xFFBBDEFB)
                     OccurrenceStatus.MISSED -> Color(0xFFFF0000)
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
@@ -146,6 +187,7 @@ private fun TodayScreen(vm: MainViewModel) {
                             val statusText = when (todayOccurrence.status) {
                                 OccurrenceStatus.COMPLETED -> "Đã hoàn thành"
                                 OccurrenceStatus.SKIPPED -> "Đã bỏ qua"
+                                OccurrenceStatus.FROZEN -> "Đã đóng băng chuỗi ❄️"
                                 OccurrenceStatus.MISSED -> "Đã bỏ lỡ"
                                 OccurrenceStatus.PENDING -> "Đang chờ"
                             }
@@ -172,8 +214,10 @@ private fun TodayScreen(vm: MainViewModel) {
                                 OutlinedButton(onClick = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) }) {
                                     Text("Bỏ qua")
                                 }
-                                OutlinedButton(onClick = { vm.mark(habit.id, OccurrenceStatus.MISSED) }) {
-                                    Text("Bỏ lỡ")
+                                if ((userStats?.streakFreezes ?: 0) > 0) {
+                                    OutlinedButton(onClick = { vm.useStreakFreeze(habit.id) }) {
+                                        Text("❄️ Dùng thẻ")
+                                    }
                                 }
                             }
                         }
@@ -346,9 +390,16 @@ private fun StatisticsScreen(vm: MainViewModel) {
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatCard("Bỏ qua", stats.skipped.toString(), Modifier.weight(1f))
-            StatCard("Chuỗi hiện tại", stats.currentStreak.toString(), Modifier.weight(1f))
+            StatCard("Đóng băng", stats.frozen.toString(), Modifier.weight(1f))
         }
-        StatCard("Chuỗi dài nhất", stats.longestStreak.toString(), Modifier.fillMaxWidth())
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard("Chuỗi hiện tại", stats.currentStreak.toString(), Modifier.weight(1f))
+            StatCard("Chuỗi dài nhất", stats.longestStreak.toString(), Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard("Tỷ lệ tuần", "${stats.weeklyCompletionRate.toInt()}%", Modifier.weight(1f))
+            StatCard("Tỷ lệ tháng", "${stats.monthlyCompletionRate.toInt()}%", Modifier.weight(1f))
+        }
     }
 }
 
