@@ -95,6 +95,18 @@ fun SettingsScreen(
             Text("Cấp quyền thông báo")
         }
 
+        OutlinedButton(onClick = {
+            com.habitflow.app.core.reminder.NotificationFactory.showNotification(
+                context = context,
+                notificationId = 1001,
+                habitName = "Uống 2L nước mỗi ngày",
+                note = "Hãy uống 1 ly nước đầy để giữ năng lượng cho ngày mới!"
+            )
+            message = "Đã phát thông báo thử nghiệm!"
+        }) {
+            Text("Test thông báo")
+        }
+
         if (message.isNotBlank()) {
             Text(message, color = MaterialTheme.colorScheme.primary)
         }
