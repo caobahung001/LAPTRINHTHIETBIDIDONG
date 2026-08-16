@@ -50,6 +50,7 @@ data class UserStatsEntity(
     val xp: Long = 0,
     val level: Int = 1,
     val streakFreezes: Int = 0,
+    val skipsAvailable: Int = 0,
     val lastAwardedStreakFreezeEpochDay: Long = 0,
 )
 

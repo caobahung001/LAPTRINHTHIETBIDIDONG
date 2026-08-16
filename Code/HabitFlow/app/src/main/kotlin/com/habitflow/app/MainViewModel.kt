@@ -37,6 +37,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.mark(habitId, OccurrenceStatus.FROZEN)
         }
     }
+
+    fun useSkip(habitId: String) = viewModelScope.launch {
+        if (GamificationManager.useSkipCard(repository)) {
+            repository.mark(habitId, OccurrenceStatus.SKIPPED)
+        }
+    }
     fun unmark(id: String, dateEpochDay: Long) = viewModelScope.launch { repository.unmark(id, dateEpochDay) }
     fun addGoal(name: String, target: Double, type: GoalMetricType) = viewModelScope.launch { repository.addGoal(name, target, type) }
     fun addGoalProgress(goal: GoalEntity, value: Double) = viewModelScope.launch { repository.addGoalProgress(goal, value) }
