@@ -35,6 +35,8 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.habitflow.app.core.datastore.UserPreferencesDataSource
+import com.habitflow.app.feature.settings.SettingsViewModel
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 class MainActivity : ComponentActivity() {
@@ -49,7 +51,26 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun HabitFlowApp(viewModel: MainViewModel) {
-    MaterialTheme {
+    val context = LocalContext.current
+    val settingsViewModel = remember {
+        SettingsViewModel(UserPreferencesDataSource(context.applicationContext))
+    }
+    val settingsUiState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+
+    val isDarkTheme = when (val state = settingsUiState) {
+        is com.habitflow.app.feature.settings.SettingsUiState.Success -> {
+            when (state.userPreferences.appTheme) {
+                com.habitflow.app.core.datastore.AppTheme.DARK -> true
+                com.habitflow.app.core.datastore.AppTheme.LIGHT -> false
+                com.habitflow.app.core.datastore.AppTheme.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+        }
+        else -> androidx.compose.foundation.isSystemInDarkTheme()
+    }
+
+    val colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()
+
+    MaterialTheme(colorScheme = colorScheme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val labels = listOf("Hôm nay", "Thói quen", "Mục tiêu", "Thống kê", "Cài đặt")
         val colors = listOf(
@@ -112,7 +133,10 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                     1 -> HabitsScreen(viewModel)
                     2 -> GoalsScreen(viewModel)
                     3 -> StatisticsScreen(viewModel)
-                    else -> SettingsScreen(viewModel)
+                    else -> com.habitflow.app.feature.settings.SettingsScreen(
+                        viewModel = settingsViewModel,
+                        mainViewModel = viewModel
+                    )
                 }
             }
         }
@@ -221,20 +245,29 @@ private fun TodayScreen(vm: MainViewModel) {
                     OccurrenceStatus.COMPLETED -> Color(0xFFC8E6C9)
                     OccurrenceStatus.SKIPPED -> Color(0xFFE1BEE7)
                     OccurrenceStatus.FROZEN -> Color(0xFFBBDEFB)
-                    OccurrenceStatus.MISSED -> Color(0xFFFF0000)
+                    OccurrenceStatus.MISSED -> Color(0xFFFFCDD2)
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
 
+                val cardContentColor = if (todayOccurrence != null) Color(0xFF1C1B1F) else contentColorFor(cardColor)
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = cardColor)
+                    colors = CardDefaults.cardColors(
+                        containerColor = cardColor,
+                        contentColor = cardContentColor
+                    )
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(habit.name, style = MaterialTheme.typography.titleMedium)
                             if (habit.scheduledTime != null) {
                                 Spacer(Modifier.width(8.dp))
-                                Text(habit.scheduledTime, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                                Text(
+                                    habit.scheduledTime,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (todayOccurrence != null) Color(0xFF49454F) else MaterialTheme.colorScheme.secondary
+                                )
                             }
                         }
                         if (habit.description.isNotBlank()) {
@@ -258,10 +291,10 @@ private fun TodayScreen(vm: MainViewModel) {
                                 Text(
                                     text = statusText,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = Color(0xFF1B5E20)
                                 )
                                 TextButton(onClick = { vm.unmark(habit.id, todayEpochDay) }) {
-                                    Text("Thay đổi")
+                                    Text("Thay đổi", color = Color(0xFF2E7D32))
                                 }
                             }
                         } else {
@@ -426,9 +459,16 @@ private fun StatisticsScreen(vm: MainViewModel) {
                                         else -> Color(0xFFFFF9C4) // Yellow
                                     }
 
+                                    val cellTextColor = if (total == 0) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        Color(0xFF1C1B1F) // Dark text for light colored cells
+                                    }
+
                                     Surface(
                                         modifier = Modifier.fillMaxSize(),
                                         color = color,
+                                        contentColor = cellTextColor,
                                         shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
                                         border = if (date == today) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
                                     ) {
@@ -478,33 +518,6 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
             Text(label, style = MaterialTheme.typography.labelMedium)
             Text(value, style = MaterialTheme.typography.headlineSmall)
         }
-    }
-}
-
-@Composable
-private fun SettingsScreen(vm: MainViewModel) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var message by remember { mutableStateOf("") }
-    val createDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) scope.launch {
-            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(vm.exportJson().toByteArray()) } }
-                .onSuccess { message = "Đã xuất dữ liệu" }.onFailure { message = it.message ?: "Xuất thất bại" }
-        }
-    }
-    val openDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            runCatching { val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("Không đọc được tệp"); vm.restoreJson(text) }
-                .onSuccess { message = "Đã khôi phục dữ liệu" }.onFailure { message = it.message ?: "Khôi phục thất bại" }
-        }
-    }
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> message = if (granted) "Đã cấp quyền thông báo" else "Chưa cấp quyền thông báo" }
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Cài đặt", style = MaterialTheme.typography.headlineMedium)
-        Button(onClick = { createDocument.launch("habitflow-backup.json") }) { Text("Xuất JSON") }
-        OutlinedButton(onClick = { openDocument.launch(arrayOf("application/json", "text/plain")) }) { Text("Khôi phục JSON") }
-        OutlinedButton(onClick = { if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) else message = "Thiết bị không cần cấp quyền runtime" }) { Text("Cấp quyền thông báo") }
-        if (message.isNotBlank()) Text(message)
     }
 }
 

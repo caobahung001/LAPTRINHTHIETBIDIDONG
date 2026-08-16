@@ -45,8 +45,12 @@ interface GoalDao {
 @Dao
 interface ReminderDao {
     @Query("SELECT * FROM reminders") suspend fun all(): List<ReminderEntity>
+    @Query("SELECT * FROM reminders WHERE enabled = 1") fun observeAllEnabled(): Flow<List<ReminderEntity>>
+    @Query("SELECT * FROM reminders WHERE habitId = :habitId") fun observeByHabit(habitId: String): Flow<List<ReminderEntity>>
+    @Query("SELECT * FROM reminders WHERE id = :id") suspend fun getById(id: String): ReminderEntity?
     @Upsert suspend fun upsert(item: ReminderEntity)
     @Upsert suspend fun upsertAll(items: List<ReminderEntity>)
+    @Query("DELETE FROM reminders WHERE id = :id") suspend fun delete(id: String)
     @Query("DELETE FROM reminders") suspend fun clear()
 }
 

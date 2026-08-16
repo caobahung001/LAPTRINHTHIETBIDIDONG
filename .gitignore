@@ -22,6 +22,7 @@ Desktop.ini
 # ==========================================
 .gradle/
 **/build/
+build/
 captures/
 .externalNativeBuild/
 .cxx/
