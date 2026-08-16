@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,11 +37,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.habitflow.app.core.datastore.UserPreferencesDataSource
 import com.habitflow.app.feature.settings.SettingsViewModel
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent { HabitFlowApp(viewModel) }
     }
@@ -69,11 +73,57 @@ fun HabitFlowApp(viewModel: MainViewModel) {
     MaterialTheme(colorScheme = colorScheme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val labels = listOf("Hôm nay", "Thói quen", "Mục tiêu", "Thống kê", "Cài đặt")
-        Scaffold(bottomBar = {
-            NavigationBar {
-                labels.forEachIndexed { index, label ->
-                    NavigationBarItem(selected = tab == index, onClick = { tab = index },
-                        icon = { Text(label.take(1)) }, label = { Text(label) })
+        val colors = listOf(
+            Color(0xFF2196F3), // Blue
+            Color(0xFF4CAF50), // Green
+            Color(0xFFFF9800), // Orange
+            Color(0xFF9C27B0), // Purple
+            Color(0xFF009688)  // Teal
+        )
+        Scaffold(
+            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            bottomBar = {
+                Surface(
+                    modifier = Modifier.navigationBarsPadding(),
+                    shadowElevation = 8.dp,
+                    tonalElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(70.dp)
+                ) {
+                    labels.forEachIndexed { index, label ->
+                        val isSelected = tab == index
+                        val baseColor = colors[index]
+                        
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(if (isSelected) baseColor else Color.Transparent)
+                                .clickable { tab = index }
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = label.take(1),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (isSelected) Color.White else baseColor
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) Color.White else baseColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }) { padding ->
@@ -98,6 +148,15 @@ private fun TodayScreen(vm: MainViewModel) {
     val habits by vm.habits.collectAsStateWithLifecycle()
     val occurrences by vm.occurrences.collectAsStateWithLifecycle()
     val userStats by vm.userStats.collectAsStateWithLifecycle()
+    var showLevelDetail by remember { mutableStateOf(false) }
+
+    if (showLevelDetail && userStats != null) {
+        LevelDetailDialog(
+            stats = userStats!!,
+            habits = habits,
+            onDismiss = { showLevelDetail = false }
+        )
+    }
 
     // Lấy ngày hôm nay và lọc thói quen
     val today = remember { LocalDate.now() }
@@ -137,7 +196,7 @@ private fun TodayScreen(vm: MainViewModel) {
         // XP and Level Header
         userStats?.let { stats ->
             Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).clickable { showLevelDetail = true },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -249,7 +308,12 @@ private fun TodayScreen(vm: MainViewModel) {
                                 }
                                 if ((userStats?.streakFreezes ?: 0) > 0) {
                                     OutlinedButton(onClick = { vm.useStreakFreeze(habit.id) }) {
-                                        Text("❄️ Dùng thẻ")
+                                        Text("❄️")
+                                    }
+                                }
+                                if ((userStats?.skipsAvailable ?: 0) > 0) {
+                                    OutlinedButton(onClick = { vm.useSkip(habit.id) }) {
+                                        Text("⏭️")
                                     }
                                 }
                             }
@@ -379,7 +443,11 @@ private fun StatisticsScreen(vm: MainViewModel) {
                                 if (date != null) {
                                     val epochDay = date.toEpochDay()
                                     val dayOccurrences = occurrencesByEpochDay[epochDay] ?: emptyList()
-                                    val dayHabits = habitsByDayOfWeek[date.dayOfWeek.value] ?: emptyList()
+                                    
+                                    // Filter habits that existed on this day
+                                    val dayHabits = habitsByDayOfWeek[date.dayOfWeek.value]?.filter { 
+                                        it.createdAt / 86400000 <= epochDay 
+                                    } ?: emptyList()
                                     
                                     val completed = dayOccurrences.count { it.status == OccurrenceStatus.COMPLETED }
                                     val total = dayHabits.size
@@ -453,4 +521,73 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
     }
 }
 
+@Composable
+fun LevelDetailDialog(
+    stats: UserStatsEntity,
+    habits: List<HabitEntity>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Chi tiết cấp độ", style = MaterialTheme.typography.headlineSmall) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // XP Progress
+                val xpForNext = GamificationManager.getXpForNextLevel(stats.level)
+                val xpForCurrent = GamificationManager.getXpForNextLevel(stats.level - 1)
+                val progress = (stats.xp - xpForCurrent).toFloat() / (xpForNext - xpForCurrent).toFloat()
+                
+                Column {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Tiến trình XP", style = MaterialTheme.typography.labelLarge)
+                        Text("${stats.xp} / $xpForNext XP", style = MaterialTheme.typography.labelMedium)
+                    }
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).padding(vertical = 4.dp),
+                        strokeCap = StrokeCap.Round
+                    )
+                }
 
+                // Skills Inventory
+                Text("Kỹ năng khả dụng", style = MaterialTheme.typography.labelLarge)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SkillItem("❄️ Đóng băng", stats.streakFreezes.toString(), MaterialTheme.colorScheme.primaryContainer)
+                    SkillItem("⏭️ Bỏ qua", stats.skipsAvailable.toString(), MaterialTheme.colorScheme.secondaryContainer)
+                }
+
+                // Habit Stats Summary
+                Text("Tổng quan thói quen", style = MaterialTheme.typography.labelLarge)
+                Text("Đang thực hiện: ${habits.size} thói quen", style = MaterialTheme.typography.bodyMedium)
+
+                // Upcoming Rewards
+                Text("Phần thưởng sắp tới", style = MaterialTheme.typography.labelLarge)
+                val rewards = GamificationManager.getUpcomingRewards(stats.level)
+                rewards.forEach { reward ->
+                    Text("• $reward", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Đóng") }
+        }
+    )
+}
+
+@Composable
+private fun SkillItem(label: String, count: String, color: androidx.compose.ui.graphics.Color) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = color,
+        modifier = Modifier.height(60.dp)
+    ) {
+        Column(
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall)
+            Text(count, style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}

@@ -66,7 +66,7 @@ interface UserStatsDao {
 
 @Database(
     entities = [HabitEntity::class, OccurrenceEntity::class, GoalEntity::class, ReminderEntity::class, UserStatsEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class HabitFlowDatabase : RoomDatabase() {
