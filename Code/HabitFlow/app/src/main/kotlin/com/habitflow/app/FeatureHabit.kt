@@ -76,7 +76,7 @@ fun HabitsScreen(vm: MainViewModel) {
         var selectedDays by remember { mutableStateOf(setOf<Int>()) }
 
         Text("Lặp lại:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -140,13 +140,27 @@ fun HabitsScreen(vm: MainViewModel) {
                     selectedDays = emptySet()
                 }
             },
-            modifier = Modifier.padding(vertical = 8.dp)
+            modifier = Modifier
+                .padding(vertical = 8.dp)
+                .align(Alignment.CenterHorizontally)
         ) {
             Text("Thêm thói quen")
         }
 
-        LazyColumn {
-            items(habits, key = { it.id }) { habit ->
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+            )
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(8.dp)
+            ) {
+                items(habits, key = { it.id }) { habit ->
                 // Optimization: Pre-calculate display text for days
                 val displayDays = remember(habit.scheduledDays) {
                     if (habit.scheduledDays.isEmpty()) {
@@ -206,6 +220,7 @@ fun HabitsScreen(vm: MainViewModel) {
             }
         }
     }
+}
 }
 
 @Composable
