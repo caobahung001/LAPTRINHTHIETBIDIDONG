@@ -10,6 +10,7 @@ Desktop.ini
 # ==========================================
 .idea/
 .vscode/
+.artifacts
 *.iml
 !.idea/copyright/
 !.idea/codeStyles/
@@ -21,7 +22,7 @@ Desktop.ini
 # ==========================================
 .gradle/
 /build/
-app/build/
+/app/build/
 /captures/
 .externalNativeBuild/
 .cxx/
