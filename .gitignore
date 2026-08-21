@@ -1,0 +1,65 @@
+# ==========================================
+# Operating Systems
+# ==========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# IDEs & Editors (Android Studio / VS Code)
+# ==========================================
+.idea/
+.vscode/
+.artifacts/
+*.iml
+!.idea/copyright/
+!.idea/codeStyles/
+!.idea/codeStyleSettings.xml
+!.idea/vcs.xml
+
+# ==========================================
+# Android & Gradle Build Artifacts
+# ==========================================
+.gradle/
+**/build/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+**/build/generated/ksp/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Android SDK Local Configuration (MUST IGNORE)
+local.properties
+
+# Keep Gradle Wrapper files in Git
+!gradle/wrapper/gradle-wrapper.jar
+!gradlew
+!gradlew.bat
+
+# ==========================================
+# Android Security & Keystores (MUST IGNORE)
+# ==========================================
+*.jks
+*.keystore
+*.pepk
+google-services.json
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Logs & Temporary
+# ==========================================
+*.log
+*.tmp
+*.temp
+
+.vs/
+bin/
+obj/
