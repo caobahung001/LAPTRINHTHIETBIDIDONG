@@ -143,6 +143,26 @@ fun SettingsScreen(
                         }
                     )
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text("Lời chào khi mở ứng dụng", style = MaterialTheme.typography.titleMedium)
+                
+                var tempGreeting by remember(prefs.greetingMessage) { mutableStateOf(prefs.greetingMessage) }
+                
+                OutlinedTextField(
+                    value = tempGreeting,
+                    onValueChange = { tempGreeting = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Lời chào") },
+                    trailingIcon = {
+                        if (tempGreeting != prefs.greetingMessage) {
+                            TextButton(onClick = { viewModel.onGreetingChanged(tempGreeting) }) {
+                                Text("Lưu")
+                            }
+                        }
+                    }
+                )
             }
         }
     }

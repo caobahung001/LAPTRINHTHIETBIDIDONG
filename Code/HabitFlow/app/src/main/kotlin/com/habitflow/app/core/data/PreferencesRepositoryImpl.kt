@@ -19,4 +19,8 @@ class PreferencesRepositoryImpl(
     override suspend fun setNotificationEnabled(enabled: Boolean) {
         userPreferencesDataSource.setNotificationEnabled(enabled)
     }
+
+    override suspend fun setGreetingMessage(message: String) {
+        userPreferencesDataSource.setGreetingMessage(message)
+    }
 }

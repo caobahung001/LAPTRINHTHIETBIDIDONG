@@ -8,4 +8,5 @@ interface PreferencesRepository {
     val userPreferencesStream: Flow<UserPreferences>
     suspend fun updateAppTheme(theme: AppTheme)
     suspend fun setNotificationEnabled(enabled: Boolean)
+    suspend fun setGreetingMessage(message: String)
 }
