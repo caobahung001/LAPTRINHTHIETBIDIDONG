@@ -3,7 +3,7 @@ package com.habitflow.app
 import java.time.LocalDate
 
 object HabitStatisticsCalculator {
-    fun calculate(items: List<OccurrenceEntity>): HabitStats {
+    fun calculate(items: List<OccurrenceEntity>, todayEpochDay: Long): HabitStats {
         val ordered = items.sortedBy { it.scheduledEpochDay }
         val completed = ordered.count { it.status == OccurrenceStatus.COMPLETED }
         val missed = ordered.count { it.status == OccurrenceStatus.MISSED }
@@ -37,9 +37,8 @@ object HabitStatisticsCalculator {
         val completionRate = if (totalConsidered == 0) 0.0 else completed * 100.0 / totalConsidered
 
         // Weekly and Monthly rates
-        val today = LocalDate.now().toEpochDay()
-        val last7Days = ordered.filter { it.scheduledEpochDay > today - 7 }
-        val last30Days = ordered.filter { it.scheduledEpochDay > today - 30 }
+        val last7Days = ordered.filter { it.scheduledEpochDay > todayEpochDay - 7 }
+        val last30Days = ordered.filter { it.scheduledEpochDay > todayEpochDay - 30 }
         
         fun calculateRate(list: List<OccurrenceEntity>): Double {
             val c = list.count { it.status == OccurrenceStatus.COMPLETED }

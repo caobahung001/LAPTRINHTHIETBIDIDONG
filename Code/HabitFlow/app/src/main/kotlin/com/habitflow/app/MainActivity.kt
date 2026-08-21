@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -56,6 +57,18 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         SettingsViewModel(UserPreferencesDataSource(context.applicationContext))
     }
     val settingsUiState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    
+    var hasShownGreeting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(settingsUiState) {
+        if (!hasShownGreeting && settingsUiState is com.habitflow.app.feature.settings.SettingsUiState.Success) {
+            val prefs = (settingsUiState as com.habitflow.app.feature.settings.SettingsUiState.Success).userPreferences
+            if (prefs.greetingMessage.isNotBlank()) {
+                android.widget.Toast.makeText(context, prefs.greetingMessage, android.widget.Toast.LENGTH_SHORT).show()
+                hasShownGreeting = true
+            }
+        }
+    }
 
     val isDarkTheme = when (val state = settingsUiState) {
         is com.habitflow.app.feature.settings.SettingsUiState.Success -> {
@@ -68,7 +81,18 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
 
-    val colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()
+    val colorScheme = if (isDarkTheme) {
+        darkColorScheme(
+            primary = Color(0xFF39FF14), // Neon Green
+            onPrimary = Color.Black,
+            secondary = Color(0xFF2C2C2E), // Dark Gray Block
+            onSecondary = Color.White,
+            surface = Color(0xFF121212),
+            onSurface = Color.White
+        )
+    } else {
+        lightColorScheme()
+    }
 
     MaterialTheme(colorScheme = colorScheme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -129,7 +153,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         }) { padding ->
             Box(Modifier.padding(padding)) {
                 when (tab) {
-                    0 -> TodayScreen(viewModel)
+                    0 -> TodayScreen(viewModel, onNavigateToHabits = { tab = 1 })
                     1 -> HabitsScreen(viewModel)
                     2 -> GoalsScreen(viewModel)
                     3 -> StatisticsScreen(viewModel)
@@ -144,30 +168,32 @@ fun HabitFlowApp(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun TodayScreen(vm: MainViewModel) {
+private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
     val habits by vm.habits.collectAsStateWithLifecycle()
     val occurrences by vm.occurrences.collectAsStateWithLifecycle()
     val userStats by vm.userStats.collectAsStateWithLifecycle()
+    val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
     var showLevelDetail by remember { mutableStateOf(false) }
 
     if (showLevelDetail && userStats != null) {
         LevelDetailDialog(
             stats = userStats!!,
             habits = habits,
+            onSkipLevel = { vm.skipLevel() },
             onDismiss = { showLevelDetail = false }
         )
     }
 
     // Lấy ngày hôm nay và lọc thói quen
-    val today = remember { LocalDate.now() }
-    val todayEpochDay = remember { today.toEpochDay() }
-    val currentDayOfWeek = remember { today.dayOfWeek.value }
+    val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
+    val todayEpochDay = remember(today) { today.toEpochDay() }
+    val currentDayOfWeek = remember(today) { today.dayOfWeek.value }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale("vi")) }
-    val dateString = remember { today.format(dateFormatter) }.replaceFirstChar { it.uppercase() }
+    val dateString = remember(today) { today.format(dateFormatter) }.replaceFirstChar { it.uppercase() }
 
-    val tomorrow = remember { today.plusDays(1) }
-    val tomorrowDayOfWeek = remember { tomorrow.dayOfWeek.value }
+    val tomorrow = remember(today) { today.plusDays(1) }
+    val tomorrowDayOfWeek = remember(tomorrow) { tomorrow.dayOfWeek.value }
 
     val filteredHabits = remember(habits, currentDayOfWeek) {
         habits.filter { habit ->
@@ -230,11 +256,26 @@ private fun TodayScreen(vm: MainViewModel) {
         }
 
         Text(dateString, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.secondary)
-        Text("Hôm nay", style = MaterialTheme.typography.headlineMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Hôm nay", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { vm.advanceTestDay() }) {
+                Text("next day(test)", color = MaterialTheme.colorScheme.error)
+            }
+        }
         Spacer(Modifier.height(12.dp))
 
         if (filteredHabits.isEmpty()) {
-            Text("Không có thói quen nào cho hôm nay.")
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("Không có thói quen nào cho hôm nay.", style = MaterialTheme.typography.bodyLarge)
+                Button(onClick = onNavigateToHabits) {
+                    Text("Thêm thói quen ngay")
+                }
+            }
         }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -291,28 +332,50 @@ private fun TodayScreen(vm: MainViewModel) {
                                 Text(
                                     text = statusText,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF1B5E20)
+                                    color = if (todayOccurrence.status == OccurrenceStatus.MISSED) Color.White else Color(0xFF1B5E20)
                                 )
-                                TextButton(onClick = { vm.unmark(habit.id, todayEpochDay) }) {
-                                    Text("Thay đổi", color = Color(0xFF2E7D32))
+                                TextButton(
+                                    onClick = { vm.unmark(habit.id, todayEpochDay) },
+                                    colors = ButtonDefaults.textButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary,
+                                        contentColor = MaterialTheme.colorScheme.onSecondary
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Thay đổi")
                                 }
                             }
                         } else {
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { vm.mark(habit.id, OccurrenceStatus.COMPLETED) }) {
+                                Button(
+                                    onClick = { vm.mark(habit.id, OccurrenceStatus.COMPLETED) },
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
                                     Text("Xong")
                                 }
-                                OutlinedButton(onClick = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) }) {
+                                OutlinedButton(
+                                    onClick = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                ) {
                                     Text("Bỏ qua")
                                 }
                                 if ((userStats?.streakFreezes ?: 0) > 0) {
-                                    OutlinedButton(onClick = { vm.useStreakFreeze(habit.id) }) {
+                                    OutlinedButton(
+                                        onClick = { vm.useStreakFreeze(habit.id) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                    ) {
                                         Text("❄️")
                                     }
                                 }
                                 if ((userStats?.skipsAvailable ?: 0) > 0) {
-                                    OutlinedButton(onClick = { vm.useSkip(habit.id) }) {
+                                    OutlinedButton(
+                                        onClick = { vm.useSkip(habit.id) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                    ) {
                                         Text("⏭️")
                                     }
                                 }
@@ -379,11 +442,13 @@ private fun StatisticsScreen(vm: MainViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val habits by vm.habits.collectAsStateWithLifecycle()
     val occurrences by vm.occurrences.collectAsStateWithLifecycle()
+    val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
 
-    val today = remember { LocalDate.now() }
-    val yearMonth = remember { YearMonth.from(today) }
-    val daysInMonth = yearMonth.lengthOfMonth()
-    val firstDayOfMonth = yearMonth.atDay(1)
+    val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
+    var selectedYearMonth by remember { mutableStateOf(YearMonth.from(today)) }
+    
+    val daysInMonth = selectedYearMonth.lengthOfMonth()
+    val firstDayOfMonth = selectedYearMonth.atDay(1)
     val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // 1 (Mon) to 7 (Sun)
 
     // Optimization: Pre-calculate habits for each day of week
@@ -412,7 +477,22 @@ private fun StatisticsScreen(vm: MainViewModel) {
         
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("vi"))).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleMedium)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { selectedYearMonth = selectedYearMonth.minusMonths(1) }) {
+                        Text("<")
+                    }
+                    Text(
+                        text = selectedYearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("vi"))).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    IconButton(onClick = { selectedYearMonth = selectedYearMonth.plusMonths(1) }) {
+                        Text(">")
+                    }
+                }
                 
                 // Grid header: T2 to CN
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -422,10 +502,10 @@ private fun StatisticsScreen(vm: MainViewModel) {
                 }
 
                 // Calendar Grid
-                val days = remember(yearMonth, firstDayOfWeek, daysInMonth) {
+                val days = remember(selectedYearMonth, firstDayOfWeek, daysInMonth) {
                     val list = mutableListOf<LocalDate?>()
                     for (i in 1 until firstDayOfWeek) { list.add(null) }
-                    for (i in 1..daysInMonth) { list.add(yearMonth.atDay(i)) }
+                    for (i in 1..daysInMonth) { list.add(selectedYearMonth.atDay(i)) }
                     list
                 }
                 
@@ -450,16 +530,20 @@ private fun StatisticsScreen(vm: MainViewModel) {
                                     } ?: emptyList()
                                     
                                     val completed = dayOccurrences.count { it.status == OccurrenceStatus.COMPLETED }
+                                    val frozen = dayOccurrences.any { it.status == OccurrenceStatus.FROZEN }
                                     val total = dayHabits.size
                                     
+                                    val isFuture = epochDay > today.toEpochDay()
+                                    
                                     val color = when {
-                                        total == 0 -> MaterialTheme.colorScheme.surfaceVariant
-                                        completed == 0 -> Color(0xFFFFCDD2) // Light red
-                                        completed >= total -> Color(0xFFC8E6C9) // Green
-                                        else -> Color(0xFFFFF9C4) // Yellow
+                                        total == 0 || isFuture -> MaterialTheme.colorScheme.surfaceVariant
+                                        frozen -> Color(0xFF2196F3) // Blue for Frozen
+                                        completed * 2 >= total -> Color(0xFFC8E6C9) // Green (>= 50%)
+                                        completed > 0 -> Color(0xFFFFF9C4) // Yellow (< 50%)
+                                        else -> Color(0xFFFFCDD2) // Light red (0%)
                                     }
 
-                                    val cellTextColor = if (total == 0) {
+                                    val cellTextColor = if (total == 0 || isFuture) {
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                     } else {
                                         Color(0xFF1C1B1F) // Dark text for light colored cells
@@ -525,11 +609,19 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 fun LevelDetailDialog(
     stats: UserStatsEntity,
     habits: List<HabitEntity>,
+    onSkipLevel: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Chi tiết cấp độ", style = MaterialTheme.typography.headlineSmall) },
+        title = { 
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Chi tiết cấp độ", style = MaterialTheme.typography.headlineSmall)
+                TextButton(onClick = onSkipLevel) {
+                    Text("Skip Level(Test)", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // XP Progress
