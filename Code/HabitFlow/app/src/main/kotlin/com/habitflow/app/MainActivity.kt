@@ -1,4 +1,8 @@
 package com.habitflow.app
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.habitflow.app.feature.statistics.StatisticsViewModel
+import com.habitflow.app.feature.statistics.StatisticsViewModelFactory
+import com.habitflow.app.feature.statistics.StatisticsScreen
 
 import java.time.LocalDate
 import android.Manifest
@@ -53,6 +57,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HabitFlowApp(viewModel: MainViewModel) {
     val context = LocalContext.current
+    val application = context.applicationContext as HabitFlowApplication
+
+    val statisticsViewModel: StatisticsViewModel = viewModel(
+        factory = StatisticsViewModelFactory(application.repository)
+    )
     val settingsViewModel = remember {
         SettingsViewModel(UserPreferencesDataSource(context.applicationContext))
     }
@@ -156,7 +165,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                     0 -> TodayScreen(viewModel, onNavigateToHabits = { tab = 1 })
                     1 -> HabitsScreen(viewModel)
                     2 -> GoalsScreen(viewModel)
-                    3 -> StatisticsScreen(viewModel)
+                    3 -> StatisticsScreen(statisticsViewModel)
                     else -> com.habitflow.app.feature.settings.SettingsScreen(
                         viewModel = settingsViewModel,
                         mainViewModel = viewModel
@@ -437,163 +446,7 @@ private fun GoalsScreen(vm: MainViewModel) {
     }
 }
 
-@Composable
-private fun StatisticsScreen(vm: MainViewModel) {
-    val stats by vm.stats.collectAsStateWithLifecycle()
-    val habits by vm.habits.collectAsStateWithLifecycle()
-    val occurrences by vm.occurrences.collectAsStateWithLifecycle()
-    val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
 
-    val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
-    var selectedYearMonth by remember { mutableStateOf(YearMonth.from(today)) }
-    
-    val daysInMonth = selectedYearMonth.lengthOfMonth()
-    val firstDayOfMonth = selectedYearMonth.atDay(1)
-    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // 1 (Mon) to 7 (Sun)
-
-    // Optimization: Pre-calculate habits for each day of week
-    val habitsByDayOfWeek = remember(habits) {
-        (1..7).associateWith { dayNum ->
-            habits.filter { habit ->
-                habit.scheduledDays.isEmpty() || 
-                habit.scheduledDays.split(",").contains(dayNum.toString())
-            }
-        }
-    }
-
-    // Optimization: Pre-calculate occurrences for each epoch day
-    val occurrencesByEpochDay = remember(occurrences) {
-        occurrences.groupBy { it.scheduledEpochDay }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("Thống kê", style = MaterialTheme.typography.headlineMedium)
-        
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { selectedYearMonth = selectedYearMonth.minusMonths(1) }) {
-                        Text("<")
-                    }
-                    Text(
-                        text = selectedYearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("vi"))).replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    IconButton(onClick = { selectedYearMonth = selectedYearMonth.plusMonths(1) }) {
-                        Text(">")
-                    }
-                }
-                
-                // Grid header: T2 to CN
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
-                        Text(day, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    }
-                }
-
-                // Calendar Grid
-                val days = remember(selectedYearMonth, firstDayOfWeek, daysInMonth) {
-                    val list = mutableListOf<LocalDate?>()
-                    for (i in 1 until firstDayOfWeek) { list.add(null) }
-                    for (i in 1..daysInMonth) { list.add(selectedYearMonth.atDay(i)) }
-                    list
-                }
-                
-                val chunks = remember(days) { days.chunked(7) }
-                chunks.forEach { week ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        week.forEach { date ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .padding(2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (date != null) {
-                                    val epochDay = date.toEpochDay()
-                                    val dayOccurrences = occurrencesByEpochDay[epochDay] ?: emptyList()
-                                    
-                                    // Filter habits that existed on this day
-                                    val dayHabits = habitsByDayOfWeek[date.dayOfWeek.value]?.filter { 
-                                        it.createdAt / 86400000 <= epochDay 
-                                    } ?: emptyList()
-                                    
-                                    val completed = dayOccurrences.count { it.status == OccurrenceStatus.COMPLETED }
-                                    val frozen = dayOccurrences.any { it.status == OccurrenceStatus.FROZEN }
-                                    val total = dayHabits.size
-                                    
-                                    val isFuture = epochDay > today.toEpochDay()
-                                    
-                                    val color = when {
-                                        total == 0 || isFuture -> MaterialTheme.colorScheme.surfaceVariant
-                                        frozen -> Color(0xFF2196F3) // Blue for Frozen
-                                        completed * 2 >= total -> Color(0xFFC8E6C9) // Green (>= 50%)
-                                        completed > 0 -> Color(0xFFFFF9C4) // Yellow (< 50%)
-                                        else -> Color(0xFFFFCDD2) // Light red (0%)
-                                    }
-
-                                    val cellTextColor = if (total == 0 || isFuture) {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    } else {
-                                        Color(0xFF1C1B1F) // Dark text for light colored cells
-                                    }
-
-                                    Surface(
-                                        modifier = Modifier.fillMaxSize(),
-                                        color = color,
-                                        contentColor = cellTextColor,
-                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                                        border = if (date == today) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (week.size < 7) {
-                            repeat(7 - week.size) {
-                                Spacer(Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Text("Tỷ lệ hoàn thành: ${"%.1f".format(stats.completionRate)}%")
-        LinearProgressIndicator(progress = { (stats.completionRate / 100.0).toFloat() }, modifier = Modifier.fillMaxWidth())
-        
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Hoàn thành", stats.completed.toString(), Modifier.weight(1f))
-            StatCard("Bỏ lỡ", stats.missed.toString(), Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Bỏ qua", stats.skipped.toString(), Modifier.weight(1f))
-            StatCard("Đóng băng", stats.frozen.toString(), Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Chuỗi hiện tại", stats.currentStreak.toString(), Modifier.weight(1f))
-            StatCard("Chuỗi dài nhất", stats.longestStreak.toString(), Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Tỷ lệ tuần", "${stats.weeklyCompletionRate.toInt()}%", Modifier.weight(1f))
-            StatCard("Tỷ lệ tháng", "${stats.monthlyCompletionRate.toInt()}%", Modifier.weight(1f))
-        }
-    }
-}
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
