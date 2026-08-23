@@ -31,24 +31,35 @@ fun SettingsScreen(
     val createDocument = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        if (uri != null) scope.launch {
-            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(mainViewModel.exportJson().toByteArray()) } }
-                .onSuccess { message = "Đã xuất dữ liệu" }
-                .onFailure { message = it.message ?: "Xuất thất bại" }
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val json = mainViewModel.exportJson()
+                    context.contentResolver.openOutputStream(uri)?.use { stream ->
+                        stream.write(json.toByteArray())
+                    }
+                    message = "Đã xuất dữ liệu"
+                } catch (e: Exception) {
+                    message = e.message ?: "Xuất thất bại"
+                }
+            }
         }
     }
 
     val openDocument = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) scope.launch {
-            runCatching {
-                val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                    ?: error("Không đọc được tệp")
-                mainViewModel.restoreJson(text)
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                        ?: error("Không đọc được tệp")
+                    mainViewModel.restoreJson(text)
+                    message = "Đã khôi phục dữ liệu"
+                } catch (e: Exception) {
+                    message = e.message ?: "Khôi phục thất bại"
+                }
             }
-                .onSuccess { message = "Đã khôi phục dữ liệu" }
-                .onFailure { message = it.message ?: "Khôi phục thất bại" }
         }
     }
 
@@ -104,7 +115,55 @@ fun SettingsScreen(
             )
             message = "Đã phát thông báo thử nghiệm!"
         }) {
-            Text("Test thông báo")
+            Text("Test thông báo tức thì 🔔")
+        }
+
+        OutlinedButton(onClick = {
+            val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+            val intent = android.content.Intent(context, com.habitflow.app.core.reminder.AlarmReceiver::class.java).apply {
+                putExtra(com.habitflow.app.core.reminder.AlarmReceiver.EXTRA_NOTIFICATION_ID, 9999)
+                putExtra(com.habitflow.app.core.reminder.AlarmReceiver.EXTRA_HABIT_NAME, "Tập thể dục buổi sáng 🏃")
+                putExtra(com.habitflow.app.core.reminder.AlarmReceiver.EXTRA_NOTE, "AlarmManager đã đánh thức hệ thống đúng giờ!")
+            }
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                context,
+                9999,
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (alarmManager.canScheduleExactAlarms()) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            android.app.AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + 10_000,
+                            pendingIntent
+                        )
+                    } else {
+                        alarmManager.setAndAllowWhileIdle(
+                            android.app.AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + 10_000,
+                            pendingIntent
+                        )
+                    }
+                } else {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        android.app.AlarmManager.RTC_WAKEUP,
+                        System.currentTimeMillis() + 10_000,
+                        pendingIntent
+                    )
+                }
+                message = "Đã hẹn giờ! Hãy thoát app, chuông sẽ nổ sau 10 giây ⏰"
+            } catch (e: SecurityException) {
+                alarmManager.setAndAllowWhileIdle(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + 10_000,
+                    pendingIntent
+                )
+                message = "Đã hẹn giờ (chế độ tiêu chuẩn)! Chuông sẽ nổ sau 10 giây ⏰"
+            }
+        }) {
+            Text("Hẹn giờ Alarm nổ sau 10 giây ⏰")
         }
 
         if (message.isNotBlank()) {
