@@ -163,45 +163,7 @@ private fun GoalsScreen(
         )
     }
 }
-/*
-@Composable
-private fun GoalsScreen(vm: MainViewModel) {
-    val goals by vm.goals.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Mục tiêu", style = MaterialTheme.typography.headlineMedium)
-    }
-}
- */
-/* P1
-@Composable
-private fun GoalsScreen(vm: MainViewModel) {
-    val goals by vm.goals.collectAsStateWithLifecycle()
-    var name by remember { mutableStateOf("") }
-    var target by remember { mutableStateOf("10") }
-    var type by remember { mutableStateOf(GoalMetricType.OCCURRENCE_COUNT) }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Mục tiêu", style = MaterialTheme.typography.headlineMedium)
-        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Tên mục tiêu") })
-        OutlinedTextField(target, { target = it }, Modifier.fillMaxWidth(), label = { Text("Giá trị mục tiêu") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-        Row {
-            FilterChip(selected = type == GoalMetricType.OCCURRENCE_COUNT, onClick = { type = GoalMetricType.OCCURRENCE_COUNT }, label = { Text("Theo số lần") })
-            Spacer(Modifier.width(8.dp))
-            FilterChip(selected = type == GoalMetricType.ACCUMULATED_VALUE, onClick = { type = GoalMetricType.ACCUMULATED_VALUE }, label = { Text("Theo giá trị") })
-        }
-        Button(onClick = { target.toDoubleOrNull()?.let { if (name.isNotBlank() && it > 0) { vm.addGoal(name, it, type); name = "" } } }, Modifier.padding(vertical = 8.dp)) { Text("Tạo mục tiêu") }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(goals, key = { it.id }) { goal ->
-                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                    Text(goal.name, style = MaterialTheme.typography.titleMedium)
-                    LinearProgressIndicator(progress = { (goal.currentValue / goal.targetValue).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                    Text("${goal.currentValue} / ${goal.targetValue} ${goal.unit}")
-                    TextButton(onClick = { vm.addGoalProgress(goal, 1.0) }) { Text("+1 tiến độ") }
-                } }
-            }
-        }
-    }
-}
- */
+
 @Composable
 private fun StatisticsScreen(vm: MainViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()
