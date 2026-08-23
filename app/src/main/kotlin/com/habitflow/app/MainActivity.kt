@@ -16,12 +16,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
+import androidx.compose.runtime.getValue
+import com.habitflow.feature.goals.GoalListScreen
+import dagger.hilt.android.AndroidEntryPoint
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.habitflow.feature.goals.GoalListViewModel
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.habitflow.feature.goals.GoalEditorScreen
+import com.habitflow.feature.goals.GoalEditorViewModel
+
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
@@ -48,7 +58,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                 when (tab) {
                     0 -> TodayScreen(viewModel)
                     1 -> HabitsScreen(viewModel)
-                    2 -> GoalsScreen(viewModel)
+                    2 -> GoalsScreen()
                     3 -> StatisticsScreen(viewModel)
                     else -> SettingsScreen(viewModel)
                 }
@@ -90,12 +100,26 @@ private fun HabitsScreen(vm: MainViewModel) {
     var description by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Thói quen", style = MaterialTheme.typography.headlineMedium)
-        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Tên thói quen") })
-        OutlinedTextField(description, { description = it }, Modifier.fillMaxWidth(), label = { Text("Mô tả") })
-        Button(onClick = { if (name.isNotBlank()) { vm.addHabit(name, description); name = ""; description = "" } }, Modifier.padding(vertical = 8.dp)) { Text("Thêm thói quen") }
+        OutlinedTextField(
+            name,
+            { name = it },
+            Modifier.fillMaxWidth(),
+            label = { Text("Tên thói quen") })
+        OutlinedTextField(
+            description,
+            { description = it },
+            Modifier.fillMaxWidth(),
+            label = { Text("Mô tả") })
+        Button(onClick = {
+            if (name.isNotBlank()) {
+                vm.addHabit(name, description); name = ""; description = ""
+            }
+        }, Modifier.padding(vertical = 8.dp)) { Text("Thêm thói quen") }
         LazyColumn {
             items(habits, key = { it.id }) { habit ->
-                ListItem(headlineContent = { Text(habit.name) }, supportingContent = { Text(habit.description) },
+                ListItem(
+                    headlineContent = { Text(habit.name) },
+                    supportingContent = { Text(habit.description) },
                     trailingContent = { TextButton(onClick = { vm.archiveHabit(habit.id) }) { Text("Lưu trữ") } })
                 HorizontalDivider()
             }
@@ -103,6 +127,52 @@ private fun HabitsScreen(vm: MainViewModel) {
     }
 }
 
+@Composable
+private fun GoalsScreen(
+    viewModel: GoalListViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showGoalEditor by remember { mutableStateOf(false) }
+
+    if (showGoalEditor) {
+        val editorViewModel: GoalEditorViewModel = hiltViewModel()
+        val editorUiState by editorViewModel.uiState.collectAsStateWithLifecycle()
+
+        GoalEditorScreen(
+            uiState = editorUiState,
+            onNameChanged = editorViewModel::onNameChanged,
+            onTargetValueChanged = editorViewModel::onTargetValueChanged,
+            onUnitChanged = editorViewModel::onUnitChanged,
+            onPeriodSelected = editorViewModel::onPeriodSelected,
+            onSaveClick = {
+                editorViewModel.saveGoal()
+                showGoalEditor = false
+            },
+            onBackClick = { showGoalEditor = false }
+        )
+    } else {
+        GoalListScreen(
+            uiState = uiState,
+            onGoalClick = { goalId -> },
+            onAddGoalClick = { showGoalEditor = true },
+            onIncrementProgress = { goalId -> },
+
+            onDeleteGoal = { goalId ->
+                viewModel.deleteGoal(goalId)
+            }
+        )
+    }
+}
+/*
+@Composable
+private fun GoalsScreen(vm: MainViewModel) {
+    val goals by vm.goals.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Mục tiêu", style = MaterialTheme.typography.headlineMedium)
+    }
+}
+ */
+/* P1
 @Composable
 private fun GoalsScreen(vm: MainViewModel) {
     val goals by vm.goals.collectAsStateWithLifecycle()
@@ -131,6 +201,7 @@ private fun GoalsScreen(vm: MainViewModel) {
         }
     }
 }
+ */
 @Composable
 private fun StatisticsScreen(vm: MainViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()

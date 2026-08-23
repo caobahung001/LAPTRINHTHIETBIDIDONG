@@ -1,23 +1,23 @@
 package com.habitflow.feature.goals.component
 
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import com.habitflow.core.model.enum.GoalPeriodType
 
 @Composable
 fun GoalPeriodPicker(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier
+    selectedPeriod: GoalPeriodType,
+    onPeriodSelected: (GoalPeriodType) -> Unit
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = modifier.fillMaxWidth(),
-        singleLine = true
-    )
+    Row {
+        GoalPeriodType.values().forEach { period ->
+            FilterChip(
+                selected = period == selectedPeriod,
+                onClick = { onPeriodSelected(period) },
+                label = { Text(period.name) }
+            )
+        }
+    }
 }

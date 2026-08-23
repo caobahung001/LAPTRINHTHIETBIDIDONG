@@ -16,3 +16,11 @@ dependencyResolutionManagement {
 
 rootProject.name = "HabitFlow"
 include(":app")
+// Thêm
+include(":feature:goals")
+include(":core:model")
+include(":core:ui")
+include(":core:domain")
+include(":core:data")
+include(":core:database")
+

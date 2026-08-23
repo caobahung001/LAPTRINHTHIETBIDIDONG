@@ -2,17 +2,16 @@ package com.habitflow.core.database.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.habitflow.core.model.enum.GoalMetricType
-import com.habitflow.core.model.enum.GoalPeriodType
 
 @Entity(tableName = "goals")
 data class GoalEntity(
-    @PrimaryKey
-    val id: String,
-    val title: String,
+    @PrimaryKey val id: String,
+    val habitId: String,
+    val name: String,
+    val metricType: String,
+    val periodType: String,
     val targetValue: Double,
-    val metricType: GoalMetricType,
-    val periodType: GoalPeriodType,
-    val startDate: Long,
-    val endDate: Long? = null
+    val unit: String,
+    val startDate: String,
+    val endDate: String
 )

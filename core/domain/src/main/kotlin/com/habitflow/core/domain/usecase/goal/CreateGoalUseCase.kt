@@ -1,10 +1,11 @@
-package com.example.habitflow.core.domain.usecase.goal
+package com.habitflow.core.domain.usecase.goal
 
-import com.example.habitflow.core.domain.model.Goal
-import com.example.habitflow.core.domain.repository.GoalRepository
+import com.habitflow.core.domain.repository.GoalRepository
+import com.habitflow.core.model.Goal
+import javax.inject.Inject
 
-class CreateGoalUseCase(private val repository: GoalRepository) {
-    suspend operator fun invoke(goal: Goal) {
-        repository.insertGoal(goal)
-    }
+class CreateGoalUseCase @Inject constructor(
+    private val repository: GoalRepository
+) {
+    suspend operator fun invoke(goal: Goal) = repository.insertGoal(goal)
 }

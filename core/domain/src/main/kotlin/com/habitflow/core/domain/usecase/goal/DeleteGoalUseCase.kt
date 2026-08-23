@@ -1,9 +1,10 @@
-package com.example.habitflow.core.domain.usecase.goal
+package com.habitflow.core.domain.usecase.goal
 
-import com.example.habitflow.core.domain.repository.GoalRepository
+import com.habitflow.core.domain.repository.GoalRepository
+import javax.inject.Inject
 
-class DeleteGoalUseCase(private val repository: GoalRepository) {
-    suspend operator fun invoke(id: String) {
-        repository.deleteGoal(id)
-    }
+class DeleteGoalUseCase @Inject constructor(
+    private val repository: GoalRepository
+) {
+    suspend operator fun invoke(goalId: String) = repository.deleteGoal(goalId)
 }
