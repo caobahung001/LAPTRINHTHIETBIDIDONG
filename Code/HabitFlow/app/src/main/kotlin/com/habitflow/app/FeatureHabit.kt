@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -23,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun HabitsScreen(vm: MainViewModel) {
     val habits by vm.habits.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var scheduledTime by remember { mutableStateOf("") }
@@ -163,12 +165,14 @@ fun HabitsScreen(vm: MainViewModel) {
                     Button(
                         onClick = {
                             if (name.isNotBlank()) {
+                                val habitName = name.trim()
                                 vm.addHabit(
-                                    name = name.trim(),
+                                    name = habitName,
                                     description = description.trim(),
                                     scheduledDays = selectedDays.sorted().joinToString(","),
                                     scheduledTime = scheduledTime.trim().ifBlank { null }
                                 )
+                                android.widget.Toast.makeText(context, "Đã thêm thói quen: $habitName", android.widget.Toast.LENGTH_SHORT).show()
                                 name = ""
                                 description = ""
                                 scheduledTime = ""
