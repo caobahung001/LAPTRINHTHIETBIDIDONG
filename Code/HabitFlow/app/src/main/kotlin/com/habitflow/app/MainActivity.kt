@@ -9,12 +9,18 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.geometry.Offset
+import kotlin.random.Random
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -239,6 +245,8 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
     val userStats by vm.userStats.collectAsStateWithLifecycle()
     val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
     var showLevelDetail by remember { mutableStateOf(false) }
+    
+    var showConfetti by remember { mutableStateOf(false) }
 
     val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
     val todayEpochDay = remember(today) { today.toEpochDay() }
@@ -273,108 +281,125 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            ScreenHeader(
-                eyebrow = dateText,
-                title = "Hôm nay",
-                subtitle = if (filteredHabits.isEmpty()) "Một ngày nhẹ nhàng cũng là một ngày có tiến bộ." else "$completedToday/${filteredHabits.size} thói quen đã hoàn thành",
-                trailing = {
-                    TextButton(onClick = vm::advanceTestDay) {
-                        Text("+1 ngày test", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            )
-        }
-
-        userStats?.let { stats ->
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (filteredHabits.size <= 2 && filteredHabits.isNotEmpty()) 24.dp else 14.dp)
+        ) {
             item {
-                LevelHeroCard(
-                    stats = stats,
-                    dailyProgress = dailyProgress,
-                    completedToday = completedToday,
-                    totalToday = filteredHabits.size,
-                    onClick = { showLevelDetail = true }
+                ScreenHeader(
+                    eyebrow = dateText,
+                    title = "Hôm nay",
+                    subtitle = if (filteredHabits.isEmpty()) "Một ngày nhẹ nhàng cũng là một ngày có tiến bộ." else "$completedToday/${filteredHabits.size} thói quen đã hoàn thành",
+                    trailing = {
+                        TextButton(onClick = vm::advanceTestDay) {
+                            Text("+1 ngày test", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
                 )
             }
-        }
 
-        if (filteredHabits.isEmpty()) {
-            item {
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+            userStats?.let { stats ->
+                item {
+                    LevelHeroCard(
+                        stats = stats,
+                        dailyProgress = dailyProgress,
+                        completedToday = completedToday,
+                        totalToday = filteredHabits.size,
+                        onClick = { showLevelDetail = true }
+                    )
+                }
+            }
+
+            if (filteredHabits.isEmpty()) {
+                item {
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Text("🌱", style = MaterialTheme.typography.displaySmall)
-                        Spacer(Modifier.height(10.dp))
-                        Text("Chưa có việc cần làm hôm nay", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Tạo thói quen đầu tiên để HabitFlow bắt đầu theo dõi tiến độ cho bạn.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("🌱", style = MaterialTheme.typography.displaySmall)
+                            Spacer(Modifier.height(10.dp))
+                            Text("Chưa có việc cần làm hôm nay", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Tạo thói quen đầu tiên để HabitFlow bắt đầu theo dõi tiến độ cho bạn.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = onNavigateToHabits,
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("Thêm thói quen") }
+                        }
+                    }
+                }
+            } else {
+                item { SectionTitle("Việc cần làm", "Tập trung vào từng việc nhỏ") }
+                items(filteredHabits, key = { it.id }) { habit ->
+                    val occurrence = todayOccurrences[habit.id]
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        HabitTodayCard(
+                            habit = habit,
+                            occurrence = occurrence,
+                            streakFreezes = userStats?.streakFreezes ?: 0,
+                            skipsAvailable = userStats?.skipsAvailable ?: 0,
+                            onComplete = { 
+                                vm.mark(habit.id, OccurrenceStatus.COMPLETED)
+                                showConfetti = true
+                            },
+                            onSkip = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
+                            onFreeze = { vm.useStreakFreeze(habit.id) },
+                            onUseSkip = { vm.useSkip(habit.id) },
+                            onReset = { vm.unmark(habit.id, todayEpochDay) },
+                            modifier = if (filteredHabits.size <= 2) Modifier.heightIn(min = 130.dp) else Modifier
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = onNavigateToHabits,
-                            shape = RoundedCornerShape(14.dp)
-                        ) { Text("Thêm thói quen") }
                     }
                 }
             }
-        } else {
-            item { SectionTitle("Việc cần làm", "Tập trung vào từng việc nhỏ") }
-            items(filteredHabits, key = { it.id }) { habit ->
-                HabitTodayCard(
-                    habit = habit,
-                    occurrence = todayOccurrences[habit.id],
-                    streakFreezes = userStats?.streakFreezes ?: 0,
-                    skipsAvailable = userStats?.skipsAvailable ?: 0,
-                    onComplete = { vm.mark(habit.id, OccurrenceStatus.COMPLETED) },
-                    onSkip = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
-                    onFreeze = { vm.useStreakFreeze(habit.id) },
-                    onUseSkip = { vm.useSkip(habit.id) },
-                    onReset = { vm.unmark(habit.id, todayEpochDay) }
-                )
+
+            if (tomorrowHabits.isNotEmpty()) {
+                item { SectionTitle("Ngày mai", "Chuẩn bị trước để giữ nhịp") }
+                items(tomorrowHabits, key = { "tomorrow_${it.id}" }) { habit ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                                Text("→", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(habit.name, fontWeight = FontWeight.SemiBold)
+                                if (habit.description.isNotBlank()) {
+                                    Text(habit.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            habit.scheduledTime?.let { TimePill(it) }
+                        }
+                    }
+                }
             }
         }
 
-        if (tomorrowHabits.isNotEmpty()) {
-            item { SectionTitle("Ngày mai", "Chuẩn bị trước để giữ nhịp") }
-            items(tomorrowHabits, key = { "tomorrow_${it.id}" }) { habit ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                            Text("→", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.primary)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(habit.name, fontWeight = FontWeight.SemiBold)
-                            if (habit.description.isNotBlank()) {
-                                Text(habit.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        habit.scheduledTime?.let { TimePill(it) }
-                    }
-                }
-            }
+        if (showConfetti) {
+            ConfettiEffect(onFinished = { showConfetti = false })
         }
     }
 }
@@ -465,7 +490,8 @@ private fun HabitTodayCard(
     onSkip: () -> Unit,
     onFreeze: () -> Unit,
     onUseSkip: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val container = when (occurrence?.status) {
         OccurrenceStatus.COMPLETED -> MaterialTheme.colorScheme.secondaryContainer
@@ -476,7 +502,7 @@ private fun HabitTodayCard(
     }
 
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = container),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (occurrence == null) 2.dp else 0.dp)
@@ -982,6 +1008,49 @@ fun LevelDetailDialog(
         dismissButton = { TextButton(onClick = onSkipLevel) { Text("Skip level (test)", color = MaterialTheme.colorScheme.error) } }
     )
 }
+
+@Composable
+private fun ConfettiEffect(onFinished: () -> Unit) {
+    val colors = listOf(Color.Red, Color.Yellow, Color.Blue, Color.Green, Color.Magenta, Color.Cyan)
+    val particles = remember {
+        List(50) {
+            ConfettiParticle(
+                x = Random.nextFloat(),
+                y = Random.nextFloat() * 0.2f,
+                color = colors.random(),
+                speed = Random.nextFloat() * 0.02f + 0.01f,
+                angle = Random.nextFloat() * 360f
+            )
+        }
+    }
+
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(1f, animationSpec = tween(2000, easing = LinearEasing))
+        onFinished()
+    }
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        particles.forEach { p ->
+            val currentY = (p.y + p.speed * progress.value * 50) % 1.2f
+            if (currentY < 1f) {
+                drawCircle(
+                    color = p.color,
+                    radius = 8f,
+                    center = Offset(p.x * size.width, currentY * size.height)
+                )
+            }
+        }
+    }
+}
+
+private data class ConfettiParticle(
+    val x: Float,
+    val y: Float,
+    val color: Color,
+    val speed: Float,
+    val angle: Float
+)
 
 @Composable
 private fun SkillItem(label: String, count: String, modifier: Modifier = Modifier) {
