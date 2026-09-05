@@ -14,9 +14,29 @@ class HabitRepository(private val db: HabitFlowDatabase) {
     val goals: Flow<List<GoalEntity>> = db.goalDao().observeActive()
     val userStats: Flow<UserStatsEntity?> = db.userStatsDao().observe()
 
-    suspend fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null) {
+    suspend fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null): String {
         require(name.isNotBlank())
-        db.habitDao().upsert(HabitEntity(UUID.randomUUID().toString(), name.trim(), description.trim(), scheduledDays = scheduledDays, scheduledTime = scheduledTime))
+        val habitId = UUID.randomUUID().toString()
+        db.habitDao().upsert(HabitEntity(habitId, name.trim(), description.trim(), scheduledDays = scheduledDays, scheduledTime = scheduledTime))
+        if (!scheduledTime.isNullOrBlank()) {
+            val parts = scheduledTime.split(":")
+            if (parts.size == 2) {
+                val hour = parts[0].toIntOrNull()
+                val minute = parts[1].toIntOrNull()
+                if (hour != null && minute != null) {
+                    val reminder = ReminderEntity(
+                        id = UUID.randomUUID().toString(),
+                        habitId = habitId,
+                        hour = hour,
+                        minute = minute,
+                        enabled = true,
+                        requestCode = (System.currentTimeMillis() % 100000).toInt()
+                    )
+                    db.reminderDao().upsert(reminder)
+                }
+            }
+        }
+        return habitId
     }
     suspend fun archiveHabit(id: String) = db.habitDao().archive(id)
     suspend fun deleteHabit(id: String) = db.habitDao().delete(id)

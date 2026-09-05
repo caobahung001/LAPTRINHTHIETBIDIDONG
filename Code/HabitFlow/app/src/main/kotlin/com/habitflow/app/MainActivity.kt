@@ -70,6 +70,16 @@ fun HabitFlowApp(viewModel: MainViewModel) {
 
     val colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()
 
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (context as? android.app.Activity)?.window
+            if (window != null) {
+                androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDarkTheme
+            }
+        }
+    }
+
     MaterialTheme(colorScheme = colorScheme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val labels = listOf("Hôm nay", "Thói quen", "Mục tiêu", "Thống kê", "Cài đặt")
@@ -81,7 +91,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
             Color(0xFF009688)  // Teal
         )
         Scaffold(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 Surface(
@@ -127,7 +137,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                 }
             }
         }) { padding ->
-            Box(Modifier.padding(padding)) {
+            Box(Modifier.padding(padding).statusBarsPadding()) {
                 when (tab) {
                     0 -> TodayScreen(viewModel)
                     1 -> HabitsScreen(viewModel)
