@@ -137,7 +137,7 @@ fun BackupRestoreScreen(
                     onClick = { createDocumentLauncher.launch("habitflow_backup_${System.currentTimeMillis() / 1000}.json") },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Xuất file sao lưu ngay 📤")
+                    Text("Xuất file sao lưu")
                 }
             }
         }
@@ -157,7 +157,7 @@ fun BackupRestoreScreen(
                     onClick = { openDocumentLauncher.launch(arrayOf("application/json", "text/plain")) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Chọn file sao lưu để khôi phục 📥")
+                    Text("Chọn file sao lưu để khôi phục")
                 }
             }
         }

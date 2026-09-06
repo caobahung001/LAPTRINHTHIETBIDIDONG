@@ -1,9 +1,11 @@
 package com.habitflow.app.feature.settings
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,8 +15,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.habitflow.app.HabitFlowDatabase
 import com.habitflow.app.MainViewModel
+import com.habitflow.app.ReminderEntity
+import com.habitflow.app.core.backup.BackupManager
+import com.habitflow.app.core.data.ReminderRepositoryImpl
+import com.habitflow.app.core.domain.scheduler.AndroidReminderScheduler
+import com.habitflow.app.core.domain.usecase.reminder.ExportBackupUseCase
+import com.habitflow.app.core.domain.usecase.reminder.RestoreBackupUseCase
 import kotlinx.coroutines.launch
 
 @Composable
@@ -23,22 +33,59 @@ fun SettingsScreen(
     mainViewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf("") }
+    var showBackupRestoreScreen by remember { mutableStateOf(false) }
 
+    // Khởi tạo các thành phần Core
+    val database = remember { HabitFlowDatabase.get(context) }
+    val scheduler = remember { AndroidReminderScheduler(context) }
+    val reminderRepository = remember { ReminderRepositoryImpl(database.reminderDao()) }
+    val backupManager = remember { BackupManager(database, scheduler) }
+    val exportUseCase = remember { ExportBackupUseCase(backupManager) }
+    val restoreUseCase = remember { RestoreBackupUseCase(backupManager) }
+
+    // Quản lý dialog chỉnh sửa giờ nhắc nhở
+    var selectedReminderForEdit by remember { mutableStateOf<ReminderEntity?>(null) }
+    var showReminderDialog by remember { mutableStateOf(false) }
+    val activeReminders by reminderRepository.observeAllEnabled().collectAsStateWithLifecycle(initialValue = emptyList())
+    val habits by mainViewModel.habits.collectAsStateWithLifecycle()
+
+    // Nếu người dùng chọn mở màn hình Sao lưu Chuyên sâu
+    if (showBackupRestoreScreen) {
+        Column(modifier = modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { showBackupRestoreScreen = false }) {
+                    Text("← Quay lại Cài đặt")
+                }
+            }
+            BackupRestoreScreen(
+                onNavigateBack = { showBackupRestoreScreen = false }
+            )
+        }
+        return
+    }
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Launcher Xuất file JSON
     val createDocument = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
             scope.launch {
                 try {
-                    val json = mainViewModel.exportJson()
+                    val json = exportUseCase()
                     context.contentResolver.openOutputStream(uri)?.use { stream ->
                         stream.write(json.toByteArray())
                     }
-                    message = "Đã xuất dữ liệu"
+                    message = "Đã xuất dữ liệu sao lưu thành công"
                 } catch (e: Exception) {
                     message = e.message ?: "Xuất thất bại"
                 }
@@ -46,6 +93,7 @@ fun SettingsScreen(
         }
     }
 
+    // Launcher Khôi phục file JSON
     val openDocument = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -54,8 +102,8 @@ fun SettingsScreen(
                 try {
                     val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                         ?: error("Không đọc được tệp")
-                    mainViewModel.restoreJson(text)
-                    message = "Đã khôi phục dữ liệu"
+                    restoreUseCase(text)
+                    message = "Đã khôi phục dữ liệu thành công"
                 } catch (e: Exception) {
                     message = e.message ?: "Khôi phục thất bại"
                 }
@@ -63,10 +111,50 @@ fun SettingsScreen(
         }
     }
 
+    // Launcher xin quyền thông báo
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        message = if (granted) "Đã cấp quyền thông báo" else "Chưa cấp quyền thông báo"
+        if (granted) {
+            viewModel.onNotificationToggled(true)
+            message = "Đã bật thông báo nhắc nhở"
+        } else {
+            message = "Ứng dụng chưa được cấp quyền gửi thông báo"
+        }
+    }
+
+    // Dialog tạo/chỉnh sửa nhắc nhở
+    if (showReminderDialog) {
+        val habitToEdit = habits.firstOrNull { it.id == selectedReminderForEdit?.habitId } ?: habits.firstOrNull()
+        if (habitToEdit != null) {
+            ReminderEditorDialog(
+                habitId = habitToEdit.id,
+                habitName = habitToEdit.name,
+                existingReminder = selectedReminderForEdit,
+                onDismiss = {
+                    showReminderDialog = false
+                    selectedReminderForEdit = null
+                },
+                onSave = { reminder ->
+                    scope.launch {
+                        reminderRepository.saveReminder(reminder)
+                        if (reminder.enabled) {
+                            scheduler.schedule(reminder, habitToEdit.name)
+                        } else {
+                            scheduler.cancel(reminder)
+                        }
+                        message = "Đã lưu giờ nhắc nhở cho: ${habitToEdit.name}"
+                    }
+                },
+                onDelete = { reminderId ->
+                    scope.launch {
+                        selectedReminderForEdit?.let { scheduler.cancel(it) }
+                        reminderRepository.deleteReminder(reminderId)
+                        message = "Đã xóa nhắc nhở"
+                    }
+                }
+            )
+        }
     }
 
     Column(
@@ -74,105 +162,121 @@ fun SettingsScreen(
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Cài đặt", style = MaterialTheme.typography.headlineMedium)
 
-        // 1. Nút Xuất JSON, Khôi phục JSON và Cấp quyền thông báo (Giao diện cũ)
-        Button(onClick = { createDocument.launch("habitflow-backup.json") }) {
-            Text("Xuất JSON")
-        }
+        // 1. Quản lý Sao lưu & Khôi phục
+        Text("Sao lưu & Dữ liệu", style = MaterialTheme.typography.titleMedium)
 
-        OutlinedButton(onClick = { openDocument.launch(arrayOf("application/json", "text/plain")) }) {
-            Text("Khôi phục JSON")
-        }
-
-        OutlinedButton(onClick = {
-            if (Build.VERSION.SDK_INT >= 33) {
-                val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-                if (hasPermission) {
-                    message = "Ứng dụng ĐÃ ĐƯỢC CẤP QUYỀN thông báo từ trước rồi!"
-                } else {
-                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showBackupRestoreScreen = true },
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Quản lý sao lưu & khôi phục", style = MaterialTheme.typography.titleMedium)
+                    Text("Xuất hoặc nạp file sao lưu JSON an toàn cho dữ liệu của bạn", style = MaterialTheme.typography.bodySmall)
                 }
-            } else {
-                message = "Thiết bị Android phiên bản cũ không cần xin quyền runtime"
+                Text("→", style = MaterialTheme.typography.titleMedium)
             }
-        }) {
-            Text("Cấp quyền thông báo")
         }
 
-        OutlinedButton(onClick = {
-            com.habitflow.app.core.reminder.NotificationFactory.showNotification(
-                context = context,
-                notificationId = 1001,
-                habitName = "Uống 2L nước mỗi ngày",
-                note = "Hãy uống 1 ly nước đầy để giữ năng lượng cho ngày mới!"
-            )
-            message = "Đã phát thông báo thử nghiệm!"
-        }) {
-            Text("Test thông báo tức thì 🔔")
-        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { createDocument.launch("habitflow_backup.json") },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Xuất dữ liệu")
+            }
 
-        OutlinedButton(onClick = {
-            val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
-            val intent = android.content.Intent(context, com.habitflow.app.core.reminder.AlarmReceiver::class.java).apply {
-                putExtra(com.habitflow.app.core.reminder.AlarmReceiver.EXTRA_NOTIFICATION_ID, 9999)
-                putExtra(com.habitflow.app.core.reminder.AlarmReceiver.EXTRA_HABIT_NAME, "Tập thể dục buổi sáng 🏃")
-                putExtra(com.habitflow.app.core.reminder.AlarmReceiver.EXTRA_NOTE, "AlarmManager đã đánh thức hệ thống đúng giờ!")
+            OutlinedButton(
+                onClick = { openDocument.launch(arrayOf("application/json", "text/plain")) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Khôi phục")
             }
-            val pendingIntent = android.app.PendingIntent.getBroadcast(
-                context,
-                9999,
-                intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (alarmManager.canScheduleExactAlarms()) {
-                        alarmManager.setExactAndAllowWhileIdle(
-                            android.app.AlarmManager.RTC_WAKEUP,
-                            System.currentTimeMillis() + 10_000,
-                            pendingIntent
-                        )
-                    } else {
-                        alarmManager.setAndAllowWhileIdle(
-                            android.app.AlarmManager.RTC_WAKEUP,
-                            System.currentTimeMillis() + 10_000,
-                            pendingIntent
-                        )
-                    }
-                } else {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        android.app.AlarmManager.RTC_WAKEUP,
-                        System.currentTimeMillis() + 10_000,
-                        pendingIntent
-                    )
-                }
-                message = "Đã hẹn giờ! Hãy thoát app, chuông sẽ nổ sau 10 giây ⏰"
-            } catch (e: SecurityException) {
-                alarmManager.setAndAllowWhileIdle(
-                    android.app.AlarmManager.RTC_WAKEUP,
-                    System.currentTimeMillis() + 10_000,
-                    pendingIntent
-                )
-                message = "Đã hẹn giờ (chế độ tiêu chuẩn)! Chuông sẽ nổ sau 10 giây ⏰"
-            }
-        }) {
-            Text("Hẹn giờ Alarm nổ sau 10 giây ⏰")
         }
 
         if (message.isNotBlank()) {
-            Text(message, color = MaterialTheme.colorScheme.primary)
+            Text(message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        // 2. Chọn Giao diện Theme & Cài đặt (Thành viên 6)
+        // 2. Khu vực Quản lý Báo thức
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Nhắc nhở thói quen", style = MaterialTheme.typography.titleMedium)
+            if (habits.isNotEmpty()) {
+                Button(onClick = {
+                    selectedReminderForEdit = null
+                    showReminderDialog = true
+                }) {
+                    Text("+ Thêm mới")
+                }
+            }
+        }
+
+        if (habits.isEmpty()) {
+            Text("Chưa có thói quen nào để tạo lịch nhắc nhở.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else if (activeReminders.isEmpty()) {
+            Text("Hiện chưa có nhắc nhở nào đang hoạt động.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            activeReminders.forEach { reminder ->
+                val habit = habits.firstOrNull { it.id == reminder.habitId }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            selectedReminderForEdit = reminder
+                            showReminderDialog = true
+                        },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(14.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = habit?.name ?: "Thói quen",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                text = "Thời gian: %02d:%02d".format(reminder.hour, reminder.minute),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text("Chỉnh sửa", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // 3. Tùy chọn Giao diện & Hệ thống
+        Text("Hệ thống", style = MaterialTheme.typography.titleMedium)
+
         when (val state = uiState) {
             is SettingsUiState.Loading -> {
                 CircularProgressIndicator()
@@ -187,17 +291,25 @@ fun SettingsScreen(
                     }
                 )
 
-
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Bật thông báo nhắc nhở")
+                    Text("Thông báo nhắc nhở")
                     Switch(
                         checked = prefs.isNotificationEnabled,
                         onCheckedChange = { enabled ->
+                            if (enabled && Build.VERSION.SDK_INT >= 33) {
+                                val hasPermission = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (!hasPermission) {
+                                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    return@Switch
+                                }
+                            }
                             viewModel.onNotificationToggled(enabled)
                         }
                     )

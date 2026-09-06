@@ -38,15 +38,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         HabitStatisticsCalculator.calculate(occurrences, todayEpochDay)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HabitStats())
 
-    fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null) = viewModelScope.launch { 
-        repository.addHabit(name, description, scheduledDays, scheduledTime)
+    fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null) = viewModelScope.launch {
+        val habitId = repository.addHabit(name, description, scheduledDays, scheduledTime)
+        if (!scheduledTime.isNullOrBlank()) {
+            val parts = scheduledTime.split(":")
+            if (parts.size == 2) {
+                val hour = parts[0].toIntOrNull()
+                val minute = parts[1].toIntOrNull()
+                if (hour != null && minute != null) {
+                    val scheduler = com.habitflow.app.core.domain.scheduler.AndroidReminderScheduler(getApplication())
+                    val reminder = (getApplication() as HabitFlowApplication).database.reminderDao().all().find { it.habitId == habitId }
+                    if (reminder != null) {
+                        scheduler.schedule(reminder, name.trim())
+                    }
+                }
+            }
+        }
         updateWidget()
     }
     fun archiveHabit(id: String) = viewModelScope.launch { 
         repository.archiveHabit(id)
         updateWidget()
     }
-    fun deleteHabit(id: String) = viewModelScope.launch { 
+    fun deleteHabit(id: String) = viewModelScope.launch {
+        val reminder = (getApplication() as HabitFlowApplication).database.reminderDao().all().find { it.habitId == id }
+        if (reminder != null) {
+            val scheduler = com.habitflow.app.core.domain.scheduler.AndroidReminderScheduler(getApplication())
+            scheduler.cancel(reminder)
+        }
         repository.deleteHabit(id)
         updateWidget()
     }

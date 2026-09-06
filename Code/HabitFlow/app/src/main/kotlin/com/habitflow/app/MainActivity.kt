@@ -130,6 +130,16 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
 
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (context as? android.app.Activity)?.window
+            if (window != null) {
+                androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            }
+        }
+    }
+
     MaterialTheme(colorScheme = if (darkTheme) DarkColors else LightColors) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val navItems = listOf(
@@ -143,6 +153,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -183,6 +194,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .statusBarsPadding()
             ) {
                 when (tab) {
                     0 -> TodayScreen(viewModel, onNavigateToHabits = { tab = 1 })
