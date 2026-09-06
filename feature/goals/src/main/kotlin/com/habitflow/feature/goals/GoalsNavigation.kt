@@ -67,6 +67,7 @@ fun NavGraphBuilder.goalEditorScreen(
         GoalEditorScreen(
             uiState = uiState,
             onNameChanged = viewModel::onNameChanged,
+            onMetricTypeChanged = viewModel::onMetricTypeChanged,
             onTargetValueChanged = viewModel::onTargetValueChanged,
             onUnitChanged = viewModel::onUnitChanged,
             onPeriodSelected = viewModel::onPeriodSelected,

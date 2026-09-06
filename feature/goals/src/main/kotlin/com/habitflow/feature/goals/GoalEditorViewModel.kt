@@ -27,11 +27,19 @@ class GoalEditorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(GoalEditorUiState())
     val uiState: StateFlow<GoalEditorUiState> = _uiState.asStateFlow()
 
-    // Lấy habitId truyền qua Navigation argument (nếu không có thì để rỗng hoặc default)
     private val habitId: String = savedStateHandle.get<String>("habitId") ?: ""
 
     fun onNameChanged(name: String) {
         _uiState.update { it.copy(name = name, errorMessage = null) }
+    }
+
+    fun onMetricTypeChanged(metricType: GoalMetricType) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                metricType = metricType,
+                unit = if (metricType == GoalMetricType.COUNT) "lần" else currentState.unit
+            )
+        }
     }
 
     fun onTargetValueChanged(targetValue: String) {
@@ -65,19 +73,14 @@ class GoalEditorViewModel @Inject constructor(
             try {
                 val currentEpochDay = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
 
-                val metricType = if (currentState.unit.lowercase() == "lần") {
-                    GoalMetricType.COUNT
-                } else {
-                    GoalMetricType.VALUE
-                }
-
                 val goal = Goal(
                     id = currentState.id ?: UUID.randomUUID().toString(),
                     habitId = habitId,
                     name = currentState.name,
-                    metricType = metricType,
+                    metricType = currentState.metricType,
                     periodType = currentState.selectedPeriod,
                     targetValue = target,
+                    currentValue = 0.0,
                     unit = currentState.unit,
                     startEpochDay = currentEpochDay,
                     endEpochDay = currentEpochDay + when (currentState.selectedPeriod) {

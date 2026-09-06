@@ -1,6 +1,7 @@
 package com.habitflow.feature.goals
 
 import com.habitflow.core.model.ProgressSummary
+import com.habitflow.core.model.enum.GoalMetricType
 import com.habitflow.core.model.enum.GoalPeriodType
 
 sealed interface GoalListUiState {
@@ -12,6 +13,7 @@ sealed interface GoalListUiState {
 data class GoalEditorUiState(
     val id: String? = null,
     val name: String = "",
+    val metricType: GoalMetricType = GoalMetricType.COUNT,
     val targetValue: String = "",
     val unit: String = "lần",
     val selectedPeriod: GoalPeriodType = GoalPeriodType.MONTHLY,

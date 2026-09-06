@@ -6,16 +6,8 @@ import com.habitflow.core.model.enum.GoalMetricType
 
 class GoalProgressCalculator {
 
-    fun calculate(
-        goal: Goal,
-        completedCount: Int = 0,
-        accumulatedValue: Double = 0.0
-    ): ProgressSummary {
-        val currentValue = if (goal.metricType == GoalMetricType.COUNT) {
-            completedCount.toDouble()
-        } else {
-            accumulatedValue
-        }
+    fun calculate(goal: Goal): ProgressSummary {
+        val currentValue = goal.currentValue
 
         val percentage = if (goal.targetValue > 0) {
             (currentValue / goal.targetValue) * 100.0

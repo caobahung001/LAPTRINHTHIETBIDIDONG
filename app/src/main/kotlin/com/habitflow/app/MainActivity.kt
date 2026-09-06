@@ -141,6 +141,7 @@ private fun GoalsScreen(
         GoalEditorScreen(
             uiState = editorUiState,
             onNameChanged = editorViewModel::onNameChanged,
+            onMetricTypeChanged = editorViewModel::onMetricTypeChanged,
             onTargetValueChanged = editorViewModel::onTargetValueChanged,
             onUnitChanged = editorViewModel::onUnitChanged,
             onPeriodSelected = editorViewModel::onPeriodSelected,
@@ -153,17 +154,15 @@ private fun GoalsScreen(
     } else {
         GoalListScreen(
             uiState = uiState,
-            onGoalClick = { goalId -> },
+            onGoalClick = { _ -> },
             onAddGoalClick = { showGoalEditor = true },
-            onIncrementProgress = { goalId -> },
-
+            onIncrementProgress = { _ -> },
             onDeleteGoal = { goalId ->
                 viewModel.deleteGoal(goalId)
             }
         )
     }
 }
-
 @Composable
 private fun StatisticsScreen(vm: MainViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()

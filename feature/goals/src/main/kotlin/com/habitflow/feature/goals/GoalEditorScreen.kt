@@ -17,6 +17,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.habitflow.core.model.enum.GoalMetricType
 import com.habitflow.core.model.enum.GoalPeriodType
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +44,7 @@ import com.habitflow.core.model.enum.GoalPeriodType
 fun GoalEditorScreen(
     uiState: GoalEditorUiState,
     onNameChanged: (String) -> Unit,
+    onMetricTypeChanged: (GoalMetricType) -> Unit,
     onTargetValueChanged: (String) -> Unit,
     onUnitChanged: (String) -> Unit,
     onPeriodSelected: (GoalPeriodType) -> Unit,
@@ -49,7 +52,6 @@ fun GoalEditorScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Tự động quay lại màn hình danh sách khi lưu thành công
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             onBackClick()
@@ -91,6 +93,29 @@ fun GoalEditorScreen(
                 singleLine = true
             )
 
+            // Chọn Loại đo lường (COUNT / VALUE)
+            Text(
+                text = "Loại mục tiêu",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = uiState.metricType == GoalMetricType.COUNT,
+                    onClick = { onMetricTypeChanged(GoalMetricType.COUNT) },
+                    label = { Text("Theo số lần (Đếm)") },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = uiState.metricType == GoalMetricType.VALUE,
+                    onClick = { onMetricTypeChanged(GoalMetricType.VALUE) },
+                    label = { Text("Giá trị tích lũy") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
             // Chỉ tiêu & Đơn vị
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -110,7 +135,8 @@ fun GoalEditorScreen(
                     value = uiState.unit,
                     onValueChange = onUnitChanged,
                     label = { Text("Đơn vị") },
-                    placeholder = { Text("lần, km, trang...") },
+                    enabled = uiState.metricType == GoalMetricType.VALUE,
+                    placeholder = { Text(if (uiState.metricType == GoalMetricType.COUNT) "lần" else "km, trang...") },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -161,7 +187,7 @@ fun GoalEditorScreen(
                 }
             }
 
-            // Hiển thị thông báo lỗi nếu có
+            // Hiển thị thông báo lỗi
             if (uiState.errorMessage != null) {
                 Text(
                     text = uiState.errorMessage,

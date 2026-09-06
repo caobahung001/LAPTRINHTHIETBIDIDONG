@@ -15,16 +15,14 @@ class ObserveGoalProgressUseCase @Inject constructor(
     operator fun invoke(): Flow<List<ProgressSummary>> {
         return goalRepository.getAllGoals().map { goals ->
             goals.map { goal ->
-                val mockCount = 4
-                val mockValue = 20.0
-                calculator.calculate(goal, mockCount, mockValue)
+                calculator.calculate(goal)
             }
         }
     }
 
     operator fun invoke(goalId: String): Flow<ProgressSummary?> {
         return goalRepository.getGoalById(goalId).map { goal ->
-            goal?.let { calculator.calculate(it, 4, 20.0) }
+            goal?.let { calculator.calculate(it) }
         }
     }
 }

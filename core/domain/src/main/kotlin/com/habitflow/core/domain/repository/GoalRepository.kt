@@ -8,5 +8,6 @@ interface GoalRepository {
     fun getGoalById(id: String): Flow<Goal?>
     suspend fun insertGoal(goal: Goal)
     suspend fun updateGoal(goal: Goal)
+    suspend fun updateProgress(id: String, amount: Double)
     suspend fun deleteGoal(id: String)
 }

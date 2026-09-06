@@ -6,8 +6,10 @@ import com.habitflow.core.database.dao.GoalDao
 import com.habitflow.core.database.entity.GoalEntity
 
 @Database(
-    entities = [GoalEntity::class],
-    version = 1,
+    entities = [
+        GoalEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class HabitFlowDatabase : RoomDatabase() {

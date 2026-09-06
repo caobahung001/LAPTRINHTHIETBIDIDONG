@@ -13,9 +13,11 @@ fun GoalEntity.toDomain(): Goal {
         metricType = GoalMetricType.valueOf(metricType),
         periodType = GoalPeriodType.valueOf(periodType),
         targetValue = targetValue,
+        currentValue = currentValue,
         unit = unit,
-        startEpochDay = startDate.toLongOrNull() ?: 0L,
-        endEpochDay = endDate.toLongOrNull() ?: 0L
+        startEpochDay = startEpochDay,
+        endEpochDay = endEpochDay,
+        isCompleted = isCompleted
     )
 }
 
@@ -27,8 +29,10 @@ fun Goal.toEntity(): GoalEntity {
         metricType = metricType.name,
         periodType = periodType.name,
         targetValue = targetValue,
+        currentValue = currentValue,
         unit = unit,
-        startDate = startEpochDay.toString(),
-        endDate = endEpochDay.toString()
+        startEpochDay = startEpochDay,
+        endEpochDay = endEpochDay,
+        isCompleted = isCompleted
     )
 }

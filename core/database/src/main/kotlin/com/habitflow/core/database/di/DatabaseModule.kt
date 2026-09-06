@@ -23,13 +23,14 @@ object DatabaseModule {
         return Room.databaseBuilder(
             context,
             HabitFlowDatabase::class.java,
-            "habitflow_database"
+            "habit_flow_db"
         )
             .fallbackToDestructiveMigration()
             .build()
     }
 
     @Provides
+    @Singleton
     fun provideGoalDao(database: HabitFlowDatabase): GoalDao {
         return database.goalDao()
     }

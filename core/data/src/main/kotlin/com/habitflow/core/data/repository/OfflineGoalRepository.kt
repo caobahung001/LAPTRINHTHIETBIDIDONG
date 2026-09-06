@@ -29,6 +29,10 @@ class OfflineGoalRepository @Inject constructor(
         goalDao.updateGoal(goal.toEntity())
     }
 
+    override suspend fun updateProgress(id: String, amount: Double) {
+        goalDao.updateProgress(id, amount)
+    }
+
     override suspend fun deleteGoal(id: String) {
         goalDao.deleteGoalById(id)
     }
