@@ -156,7 +156,9 @@ private fun GoalsScreen(
             uiState = uiState,
             onGoalClick = { _ -> },
             onAddGoalClick = { showGoalEditor = true },
-            onIncrementProgress = { _ -> },
+            onIncrementProgress = { goalId, value ->
+                viewModel.incrementProgress(goalId, value)
+            },
             onDeleteGoal = { goalId ->
                 viewModel.deleteGoal(goalId)
             }

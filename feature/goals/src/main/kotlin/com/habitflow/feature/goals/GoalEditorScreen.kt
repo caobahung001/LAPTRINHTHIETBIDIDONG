@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -25,14 +27,15 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -52,6 +55,8 @@ fun GoalEditorScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showDatePicker by remember { mutableStateOf(false) }
+
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) {
             onBackClick()
@@ -61,9 +66,7 @@ fun GoalEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(if (uiState.id == null) "Tạo mục tiêu" else "Sửa mục tiêu")
-                },
+                title = { Text(if (uiState.id == null) "Tạo mục tiêu" else "Sửa mục tiêu") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -93,11 +96,8 @@ fun GoalEditorScreen(
                 singleLine = true
             )
 
-            // Chọn Loại đo lường (COUNT / VALUE)
-            Text(
-                text = "Loại mục tiêu",
-                style = MaterialTheme.typography.titleSmall
-            )
+            // Chọn Loại mục tiêu
+            Text(text = "Loại mục tiêu", style = MaterialTheme.typography.titleSmall)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -152,7 +152,7 @@ fun GoalEditorScreen(
                     value = when (uiState.selectedPeriod) {
                         GoalPeriodType.WEEKLY -> "Hằng tuần"
                         GoalPeriodType.MONTHLY -> "Hằng tháng"
-                        GoalPeriodType.CUSTOM -> "Tùy chỉnh"
+                        GoalPeriodType.CUSTOM -> "Tùy chỉnh (Chọn ngày)"
                     },
                     onValueChange = {},
                     readOnly = true,
@@ -181,13 +181,16 @@ fun GoalEditorScreen(
                             onClick = {
                                 onPeriodSelected(period)
                                 expanded = false
+                                if (period == GoalPeriodType.CUSTOM) {
+                                    showDatePicker = true
+                                }
                             }
                         )
                     }
                 }
             }
 
-            // Hiển thị thông báo lỗi
+            // Hiển thị thông báo lỗi nếu có
             if (uiState.errorMessage != null) {
                 Text(
                     text = uiState.errorMessage,
@@ -215,6 +218,28 @@ fun GoalEditorScreen(
                     Text("Lưu mục tiêu")
                 }
             }
+        }
+    }
+
+    // Lịch chọn ngày DatePicker khi bấm Tùy chỉnh
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                }) {
+                    Text("Xác nhận")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Hủy")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

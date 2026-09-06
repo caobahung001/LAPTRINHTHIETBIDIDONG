@@ -75,7 +75,34 @@ class GoalListViewModel @Inject constructor(
         }
     }
 
-    // 4. Delete Goal (Xóa mục tiêu)
+    // 4. Increment Progress (Cộng dồn tiến độ cho COUNT và VALUE)
+    fun incrementProgress(goalId: String, addedValue: Double) {
+        viewModelScope.launch {
+            val currentState = uiState.value
+            if (currentState is GoalListUiState.Success) {
+                val item = currentState.items.find { it.goalId == goalId } ?: return@launch
+                val newProgress = item.currentProgress + addedValue
+                val currentEpoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
+
+                updateGoalUseCase(
+                    Goal(
+                        id = item.goalId,
+                        habitId = "",
+                        name = item.goalName,
+                        metricType = if (item.unit.lowercase() == "lần") GoalMetricType.COUNT else GoalMetricType.VALUE,
+                        periodType = GoalPeriodType.MONTHLY,
+                        targetValue = item.targetValue,
+                        currentValue = newProgress,
+                        unit = item.unit,
+                        startEpochDay = currentEpoch,
+                        endEpochDay = currentEpoch + 30
+                    )
+                )
+            }
+        }
+    }
+
+    // 5. Delete Goal (Xóa mục tiêu)
     fun deleteGoal(goalId: String) {
         viewModelScope.launch {
             deleteGoalUseCase(goalId)

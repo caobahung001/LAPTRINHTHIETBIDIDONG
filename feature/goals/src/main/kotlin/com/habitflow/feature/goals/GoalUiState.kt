@@ -17,6 +17,7 @@ data class GoalEditorUiState(
     val targetValue: String = "",
     val unit: String = "lần",
     val selectedPeriod: GoalPeriodType = GoalPeriodType.MONTHLY,
+    val customEndEpochDay: Long? = null, // Lưu ngày kết thúc khi chọn CUSTOM
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
     val errorMessage: String? = null

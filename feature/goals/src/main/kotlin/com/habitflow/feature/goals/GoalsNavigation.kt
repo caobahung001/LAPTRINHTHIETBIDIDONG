@@ -38,8 +38,9 @@ fun NavGraphBuilder.goalsScreen(
             uiState = uiState,
             onGoalClick = onGoalClick,
             onAddGoalClick = onAddGoalClick,
-            onIncrementProgress = { goalId ->
-                onGoalClick(goalId)
+            onIncrementProgress = { goalId, addedValue ->
+                // Gọi ViewModel để cập nhật tiến độ tương ứng
+                viewModel.incrementProgress(goalId, addedValue)
             },
             onDeleteGoal = { goalId ->
                 viewModel.deleteGoal(goalId)

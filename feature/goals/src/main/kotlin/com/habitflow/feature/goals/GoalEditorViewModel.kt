@@ -29,6 +29,10 @@ class GoalEditorViewModel @Inject constructor(
 
     private val habitId: String = savedStateHandle.get<String>("habitId") ?: ""
 
+    fun resetState() {
+        _uiState.value = GoalEditorUiState()
+    }
+
     fun onNameChanged(name: String) {
         _uiState.update { it.copy(name = name, errorMessage = null) }
     }
@@ -37,7 +41,8 @@ class GoalEditorViewModel @Inject constructor(
         _uiState.update { currentState ->
             currentState.copy(
                 metricType = metricType,
-                unit = if (metricType == GoalMetricType.COUNT) "lần" else currentState.unit
+                // Nếu là COUNT thì gán mặc định "lần", nếu là VALUE thì xóa "lần" để user tự nhập (km, trang...)
+                unit = if (metricType == GoalMetricType.COUNT) "lần" else if (currentState.unit == "lần") "" else currentState.unit
             )
         }
     }
@@ -54,6 +59,11 @@ class GoalEditorViewModel @Inject constructor(
         _uiState.update { it.copy(selectedPeriod = period) }
     }
 
+    // Hàm mới: Lưu ngày kết thúc tùy chỉnh từ DatePicker
+    fun onCustomEndEpochDaySelected(epochDay: Long) {
+        _uiState.update { it.copy(customEndEpochDay = epochDay, errorMessage = null) }
+    }
+
     fun saveGoal() {
         val currentState = _uiState.value
 
@@ -68,10 +78,22 @@ class GoalEditorViewModel @Inject constructor(
             return
         }
 
+        // Validate ngày tùy chỉnh nếu chọn CUSTOM
+        if (currentState.selectedPeriod == GoalPeriodType.CUSTOM && currentState.customEndEpochDay == null) {
+            _uiState.update { it.copy(errorMessage = "Vui lòng chọn ngày kết thúc cho thời hạn tùy chỉnh") }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
                 val currentEpochDay = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
+
+                val calculatedEndEpochDay = when (currentState.selectedPeriod) {
+                    GoalPeriodType.WEEKLY -> currentEpochDay + 7
+                    GoalPeriodType.MONTHLY -> currentEpochDay + 30
+                    GoalPeriodType.CUSTOM -> currentState.customEndEpochDay ?: (currentEpochDay + 30)
+                }
 
                 val goal = Goal(
                     id = currentState.id ?: UUID.randomUUID().toString(),
@@ -81,13 +103,9 @@ class GoalEditorViewModel @Inject constructor(
                     periodType = currentState.selectedPeriod,
                     targetValue = target,
                     currentValue = 0.0,
-                    unit = currentState.unit,
+                    unit = currentState.unit.ifBlank { if (currentState.metricType == GoalMetricType.COUNT) "lần" else "đơn vị" },
                     startEpochDay = currentEpochDay,
-                    endEpochDay = currentEpochDay + when (currentState.selectedPeriod) {
-                        GoalPeriodType.WEEKLY -> 7
-                        GoalPeriodType.MONTHLY -> 30
-                        GoalPeriodType.CUSTOM -> 90
-                    }
+                    endEpochDay = calculatedEndEpochDay
                 )
 
                 if (currentState.id == null) {
