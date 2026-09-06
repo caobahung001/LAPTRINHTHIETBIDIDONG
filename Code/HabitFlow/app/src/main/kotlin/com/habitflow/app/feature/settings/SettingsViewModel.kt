@@ -43,4 +43,10 @@ class SettingsViewModel(
             preferencesRepository.setNotificationEnabled(enabled)
         }
     }
+
+    fun onGreetingChanged(message: String) {
+        viewModelScope.launch {
+            preferencesRepository.setGreetingMessage(message)
+        }
+    }
 }

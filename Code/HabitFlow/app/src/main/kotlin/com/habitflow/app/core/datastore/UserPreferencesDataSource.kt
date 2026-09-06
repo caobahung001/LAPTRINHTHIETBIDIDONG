@@ -23,6 +23,7 @@ class UserPreferencesDataSource(private val context: Context) {
         val APP_THEME = stringPreferencesKey("app_theme")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val NOTIFICATION_ENABLED = booleanPreferencesKey("notification_enabled")
+        val GREETING_MESSAGE = stringPreferencesKey("greeting_message")
     }
 
     val userPreferencesStream: Flow<UserPreferences> = context.dataStore.data
@@ -44,13 +45,20 @@ class UserPreferencesDataSource(private val context: Context) {
             UserPreferences(
                 appTheme = theme,
                 useDynamicColor = preferences[PreferencesKeys.DYNAMIC_COLOR] ?: true,
-                isNotificationEnabled = preferences[PreferencesKeys.NOTIFICATION_ENABLED] ?: true
+                isNotificationEnabled = preferences[PreferencesKeys.NOTIFICATION_ENABLED] ?: true,
+                greetingMessage = preferences[PreferencesKeys.GREETING_MESSAGE] ?: "Ngày mới lại bắt đầu rồi"
             )
         }
 
     suspend fun updateAppTheme(theme: AppTheme) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.APP_THEME] = theme.name
+        }
+    }
+
+    suspend fun setGreetingMessage(message: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GREETING_MESSAGE] = message
         }
     }
 
