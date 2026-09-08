@@ -1,7 +1,6 @@
 package com.habitflow.app
 
 import android.app.Application
-import com.habitflow.app.core.reminder.ChannelManager
 
 class HabitFlowApplication : Application() {
     val database by lazy { HabitFlowDatabase.get(this) }
@@ -9,6 +8,6 @@ class HabitFlowApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        ChannelManager.createNotificationChannel(this)
+        NotificationHelper.createNotificationChannel(this)
     }
 }

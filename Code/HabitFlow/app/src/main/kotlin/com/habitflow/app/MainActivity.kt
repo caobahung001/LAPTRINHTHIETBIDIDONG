@@ -34,11 +34,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.habitflow.app.core.datastore.AppTheme
-import com.habitflow.app.core.datastore.UserPreferencesDataSource
-import com.habitflow.app.feature.settings.SettingsScreen
-import com.habitflow.app.feature.settings.SettingsUiState
-import com.habitflow.app.feature.settings.SettingsViewModel
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter

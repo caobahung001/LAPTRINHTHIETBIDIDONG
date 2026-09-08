@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.glance.appwidget.updateAll
-import com.habitflow.app.core.widget.HabitWidget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,10 +45,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val hour = parts[0].toIntOrNull()
                 val minute = parts[1].toIntOrNull()
                 if (hour != null && minute != null) {
-                    val scheduler = com.habitflow.app.core.domain.scheduler.AndroidReminderScheduler(getApplication())
                     val reminder = (getApplication() as HabitFlowApplication).database.reminderDao().all().find { it.habitId == habitId }
                     if (reminder != null) {
-                        scheduler.schedule(reminder, name.trim())
+                        ReminderScheduler.schedule(getApplication(), reminder, name.trim())
                     }
                 }
             }
@@ -63,8 +61,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteHabit(id: String) = viewModelScope.launch {
         val reminder = (getApplication() as HabitFlowApplication).database.reminderDao().all().find { it.habitId == id }
         if (reminder != null) {
-            val scheduler = com.habitflow.app.core.domain.scheduler.AndroidReminderScheduler(getApplication())
-            scheduler.cancel(reminder)
+            ReminderScheduler.cancel(getApplication(), reminder)
         }
         repository.deleteHabit(id)
         updateWidget()
