@@ -1,10 +1,13 @@
 package com.habitflow.app
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.glance.appwidget.updateAll
 import com.habitflow.app.core.widget.HabitWidget
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,17 +18,31 @@ import java.time.LocalDate
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = (application as HabitFlowApplication).repository
+    private val sharedPrefs = application.getSharedPreferences("habitflow_test_prefs", Context.MODE_PRIVATE)
 
-    private val _testDateOffset = MutableStateFlow(0L)
+    private val _testDateOffset = MutableStateFlow(sharedPrefs.getLong("test_date_offset", 0L))
     val testDateOffset = _testDateOffset.asStateFlow()
 
     fun advanceTestDay() {
-        _testDateOffset.value += 1
-        updateWidget()
+        val nextOffset = _testDateOffset.value + 1
+        sharedPrefs.edit().putLong("test_date_offset", nextOffset).apply()
+        _testDateOffset.value = nextOffset
+        viewModelScope.launch { updateWidget() }
     }
 
-    private fun updateWidget() = viewModelScope.launch {
+    private suspend fun updateWidget() {
+        // Wait a small buffer time for the Room database transaction to fully flush to disk
+        delay(150)
+        
+        // 1. Trigger Glance update engine
         HabitWidget().updateAll(getApplication())
+        
+        // 2. Explicitly notify the system via generic package broadcast to refresh app widget provider states
+        val context = getApplication<Application>().applicationContext
+        val intent = Intent("android.appwidget.action.APPWIDGET_UPDATE").apply {
+            `package` = context.packageName
+        }
+        context.sendBroadcast(intent)
     }
 
     val habits = repository.habits.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -35,7 +52,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val stats = combine(repository.occurrences, repository.habits, testDateOffset) { occurrences, habits, offset ->
         val todayEpochDay = LocalDate.now().plusDays(offset).toEpochDay()
-        HabitStatisticsCalculator.calculate(occurrences, todayEpochDay)
+        HabitStatisticsCalculator.calculate(occurrences, habits, todayEpochDay)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HabitStats())
 
     fun addHabit(name: String, description: String = "", scheduledDays: String = "", scheduledTime: String? = null) = viewModelScope.launch {
@@ -102,6 +119,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun unmark(id: String, dateEpochDay: Long) = viewModelScope.launch { 
+        val currentOccurrences = repository.getOccurrencesDirect()
+        val existing = currentOccurrences.find { it.habitId == id && it.scheduledEpochDay == dateEpochDay }
+        if (existing?.status == OccurrenceStatus.COMPLETED) {
+            val habitStats = stats.value
+            GamificationManager.processReset(repository, habitStats.currentStreak, dateEpochDay)
+        }
         repository.unmark(id, dateEpochDay)
         updateWidget()
     }

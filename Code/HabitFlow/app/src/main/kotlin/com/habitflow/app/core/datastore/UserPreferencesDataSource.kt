@@ -35,11 +35,11 @@ class UserPreferencesDataSource(private val context: Context) {
             }
         }
         .map { preferences ->
-            val themeName = preferences[PreferencesKeys.APP_THEME] ?: AppTheme.SYSTEM.name
+            val themeName = preferences[PreferencesKeys.APP_THEME] ?: AppTheme.LIGHT.name
             val theme = try {
                 AppTheme.valueOf(themeName)
             } catch (e: IllegalArgumentException) {
-                AppTheme.SYSTEM
+                AppTheme.LIGHT
             }
 
             UserPreferences(

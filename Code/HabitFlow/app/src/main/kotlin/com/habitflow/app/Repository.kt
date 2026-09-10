@@ -60,6 +60,9 @@ class HabitRepository(private val db: HabitFlowDatabase) {
         db.goalDao().upsert(goal.copy(currentValue = (goal.currentValue + value).coerceAtMost(goal.targetValue)))
     }
 
+    suspend fun getActiveHabitsDirect(): List<HabitEntity> = db.habitDao().all().filter { !it.archived }
+    suspend fun getOccurrencesDirect(): List<OccurrenceEntity> = db.occurrenceDao().all()
+
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = false }
     suspend fun exportJson(): String = json.encodeToString(BackupData(
         habits = db.habitDao().all(), occurrences = db.occurrenceDao().all(),
