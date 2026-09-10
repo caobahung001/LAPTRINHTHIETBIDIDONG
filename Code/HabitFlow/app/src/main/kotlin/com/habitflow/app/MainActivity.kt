@@ -405,9 +405,108 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
         }
     }
 }
+@Composable
+fun GoalsScreen(vm: MainViewModel) {
+    val goals by vm.goals.collectAsStateWithLifecycle()
+    var name by remember { mutableStateOf("") }
+    var target by remember { mutableStateOf("10") }
+    var type by remember { mutableStateOf(GoalMetricType.OCCURRENCE_COUNT) }
 
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Mục tiêu", style = MaterialTheme.typography.headlineMedium)
 
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Tên mục tiêu") }
+        )
 
+        OutlinedTextField(
+            value = target,
+            onValueChange = { target = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Giá trị mục tiêu") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = type == GoalMetricType.OCCURRENCE_COUNT,
+                onClick = { type = GoalMetricType.OCCURRENCE_COUNT },
+                label = { Text("Theo số lần") }
+            )
+            FilterChip(
+                selected = type == GoalMetricType.ACCUMULATED_VALUE,
+                onClick = { type = GoalMetricType.ACCUMULATED_VALUE },
+                label = { Text("Theo giá trị") }
+            )
+        }
+
+        Button(
+            onClick = {
+                target.toDoubleOrNull()?.let { targetVal ->
+                    if (name.isNotBlank() && targetVal > 0) {
+                        // Đã sửa: Truyền đúng 3 tham số theo MainViewModel
+                        vm.addGoal(name, targetVal, type)
+                        name = ""
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Tạo mục tiêu")
+        }
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            items(goals, key = { it.id }) { goal ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(goal.name, style = MaterialTheme.typography.titleMedium)
+
+                        LinearProgressIndicator(
+                            progress = { (goal.currentValue / goal.targetValue).toFloat().coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("${goal.currentValue} / ${goal.targetValue} ${goal.unit}")
+
+                            val periodText = when (goal.periodType) {
+                                GoalPeriodType.WEEKLY -> "Hàng tuần"
+                                GoalPeriodType.MONTHLY -> "Hàng tháng"
+                                GoalPeriodType.CUSTOM -> "Tùy chỉnh"
+                            }
+                            Text("Chu kỳ: $periodText")
+                        }
+
+                        TextButton(
+                            onClick = { vm.addGoalProgress(goal, 1.0) },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("+1 tiến độ")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+/*
 @Composable
 private fun GoalsScreen(vm: MainViewModel) {
     val goals by vm.goals.collectAsStateWithLifecycle()
@@ -437,6 +536,7 @@ private fun GoalsScreen(vm: MainViewModel) {
     }
 }
 
+ */
 @Composable
 private fun StatisticsScreen(vm: MainViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()

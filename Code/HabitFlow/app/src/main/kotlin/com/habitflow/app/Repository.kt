@@ -30,12 +30,28 @@ class HabitRepository(private val db: HabitFlowDatabase) {
     suspend fun getUserStats(): UserStatsEntity = db.userStatsDao().get() ?: UserStatsEntity().also { db.userStatsDao().upsert(it) }
     suspend fun updateUserStats(stats: UserStatsEntity) = db.userStatsDao().upsert(stats)
 
-    suspend fun addGoal(name: String, target: Double, type: GoalMetricType) {
+    // ĐÃ SỬA: Bổ sung tham số periodType và dùng Named Arguments để không bao giờ bị lệch vị trí tham số
+    suspend fun addGoal(
+        name: String,
+        target: Double,
+        type: GoalMetricType,
+        periodType: GoalPeriodType = GoalPeriodType.WEEKLY
+    ) {
         require(name.isNotBlank() && target > 0)
-        db.goalDao().upsert(GoalEntity(UUID.randomUUID().toString(), name.trim(), type, target,
-            unit = if (type == GoalMetricType.OCCURRENCE_COUNT) "lần" else "đơn vị",
-            startEpochDay = LocalDate.now().toEpochDay()))
+        db.goalDao().upsert(
+            GoalEntity(
+                id = UUID.randomUUID().toString(),
+                name = name.trim(),
+                metricType = type,
+                periodType = periodType,
+                targetValue = target,
+                currentValue = 0.0,
+                unit = if (type == GoalMetricType.OCCURRENCE_COUNT) "lần" else "đơn vị",
+                startEpochDay = LocalDate.now().toEpochDay()
+            )
+        )
     }
+
     suspend fun addGoalProgress(goal: GoalEntity, value: Double) {
         db.goalDao().upsert(goal.copy(currentValue = (goal.currentValue + value).coerceAtMost(goal.targetValue)))
     }
