@@ -916,6 +916,7 @@ private fun CalendarDayCell(
                 frozen -> MaterialTheme.colorScheme.primaryContainer
                 completed * 2 >= total -> MaterialTheme.colorScheme.secondaryContainer
                 completed > 0 -> MaterialTheme.colorScheme.tertiaryContainer
+                date == today -> MaterialTheme.colorScheme.surfaceVariant
                 else -> MaterialTheme.colorScheme.errorContainer
             }
             Surface(
