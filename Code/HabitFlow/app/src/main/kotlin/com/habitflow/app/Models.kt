@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable enum class OccurrenceStatus { PENDING, COMPLETED, MISSED, SKIPPED, FROZEN }
 @Serializable enum class GoalMetricType { OCCURRENCE_COUNT, ACCUMULATED_VALUE }
-
+@Serializable enum class GoalPeriodType { WEEKLY,MONTHLY, CUSTOM
+}
 @Serializable
 @Entity(tableName = "habits")
 data class HabitEntity(
@@ -60,6 +61,7 @@ data class GoalEntity(
     @PrimaryKey val id: String,
     val name: String,
     val metricType: GoalMetricType,
+    val periodType: GoalPeriodType = GoalPeriodType.WEEKLY,
     val targetValue: Double,
     val currentValue: Double = 0.0,
     val unit: String = "lần",
