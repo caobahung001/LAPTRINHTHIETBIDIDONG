@@ -1,4 +1,4 @@
-package com.habitflow.app.core.widget
+package com.habitflow.app
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
@@ -7,7 +7,10 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.actionStartActivity
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.*
@@ -15,13 +18,12 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import androidx.glance.action.clickable
-import androidx.glance.appwidget.cornerRadius
-import com.habitflow.app.MainActivity
-import com.habitflow.app.HabitFlowApplication
-import com.habitflow.app.OccurrenceStatus
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
+
+class HabitWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = HabitWidget()
+}
 
 class HabitWidget : GlanceAppWidget() {
 
@@ -113,7 +115,6 @@ class HabitWidget : GlanceAppWidget() {
                         style = TextStyle(color = ColorProvider(Color.LightGray), fontSize = 11.sp)
                     )
                 } else {
-                    // Limit to top 5 habits to ensure they are readable
                     val visibleHabits = habits.take(5)
                     Column(modifier = GlanceModifier.defaultWeight().fillMaxWidth()) {
                         visibleHabits.forEachIndexed { index, (name, completed) ->

@@ -30,14 +30,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.format.DateTimeFormatter
-import java.time.YearMonth
 import java.time.DayOfWeek
 import java.util.Locale
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import com.habitflow.app.core.datastore.UserPreferencesDataSource
-import com.habitflow.app.feature.settings.SettingsViewModel
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 class MainActivity : ComponentActivity() {
@@ -61,8 +58,8 @@ fun HabitFlowApp(viewModel: MainViewModel) {
     var hasShownGreeting by remember { mutableStateOf(false) }
 
     LaunchedEffect(settingsUiState) {
-        if (!hasShownGreeting && settingsUiState is com.habitflow.app.feature.settings.SettingsUiState.Success) {
-            val prefs = (settingsUiState as com.habitflow.app.feature.settings.SettingsUiState.Success).userPreferences
+        if (!hasShownGreeting && settingsUiState is SettingsUiState.Success) {
+            val prefs = (settingsUiState as SettingsUiState.Success).userPreferences
             if (prefs.greetingMessage.isNotBlank()) {
                 android.widget.Toast.makeText(context, prefs.greetingMessage, android.widget.Toast.LENGTH_SHORT).show()
                 hasShownGreeting = true
@@ -71,11 +68,11 @@ fun HabitFlowApp(viewModel: MainViewModel) {
     }
 
     val isDarkTheme = when (val state = settingsUiState) {
-        is com.habitflow.app.feature.settings.SettingsUiState.Success -> {
+        is SettingsUiState.Success -> {
             when (state.userPreferences.appTheme) {
-                com.habitflow.app.core.datastore.AppTheme.DARK -> true
-                com.habitflow.app.core.datastore.AppTheme.LIGHT -> false
-                com.habitflow.app.core.datastore.AppTheme.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+                AppTheme.DARK -> true
+                AppTheme.LIGHT -> false
+                AppTheme.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
             }
         }
         else -> androidx.compose.foundation.isSystemInDarkTheme()
@@ -94,6 +91,16 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         lightColorScheme()
     }
 
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (context as? android.app.Activity)?.window
+            if (window != null) {
+                androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isDarkTheme
+            }
+        }
+    }
+
     MaterialTheme(colorScheme = colorScheme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val labels = listOf("Hôm nay", "Thói quen", "Mục tiêu", "Thống kê", "Cài đặt")
@@ -105,7 +112,7 @@ fun HabitFlowApp(viewModel: MainViewModel) {
             Color(0xFF009688)  // Teal
         )
         Scaffold(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 Surface(
@@ -151,13 +158,13 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                 }
             }
         }) { padding ->
-            Box(Modifier.padding(padding)) {
+            Box(Modifier.padding(padding).statusBarsPadding()) {
                 when (tab) {
                     0 -> TodayScreen(viewModel, onNavigateToHabits = { tab = 1 })
                     1 -> HabitsScreen(viewModel)
                     2 -> GoalsScreen(viewModel)
                     3 -> StatisticsScreen(viewModel)
-                    else -> com.habitflow.app.feature.settings.SettingsScreen(
+                    else -> SettingsScreen(
                         viewModel = settingsViewModel,
                         mainViewModel = viewModel
                     )

@@ -20,14 +20,14 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".core.reminder.AlarmReceiver" android:exported="false" />
-        <receiver android:name=".core.reminder.BootReceiver" android:enabled="true" android:exported="true">
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".core.reminder.TimeChangeReceiver" android:enabled="true" android:exported="true">
+        <receiver android:name=".TimeChangeReceiver" android:enabled="true" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
@@ -35,7 +35,7 @@
         </receiver>
 
         <receiver
-            android:name=".core.widget.HabitWidgetReceiver"
+            android:name=".HabitWidgetReceiver"
             android:exported="true"
             android:label="Tiến độ thói quen">
             <intent-filter>
