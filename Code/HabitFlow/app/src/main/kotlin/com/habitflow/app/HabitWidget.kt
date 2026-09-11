@@ -29,17 +29,21 @@ class HabitWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repository = (context.applicationContext as HabitFlowApplication).repository
+        val sharedPrefs = context.getSharedPreferences("habitflow_test_prefs", Context.MODE_PRIVATE)
+        val offset = sharedPrefs.getLong("test_date_offset", 0L)
         
-        // Fetch data for today
-        val habits = repository.habits.first()
-        val occurrences = repository.occurrences.first()
+        // Fetch data for today directly from the database to avoid race conditions with Room flow caching
+        val habits = repository.getActiveHabitsDirect()
+        val occurrences = repository.getOccurrencesDirect()
         
-        val today = LocalDate.now()
+        val today = LocalDate.now().plusDays(offset)
         val todayEpochDay = today.toEpochDay()
         val dayOfWeek = today.dayOfWeek.value
         
-        val todayHabits = habits.filter { 
-            it.scheduledDays.isEmpty() || it.scheduledDays.split(",").contains(dayOfWeek.toString())
+        val todayHabits = habits.filter { habit ->
+            val isScheduled = habit.scheduledDays.isEmpty() || habit.scheduledDays.split(",").contains(dayOfWeek.toString())
+            val isCreated = (habit.createdAt / 86400000L) <= todayEpochDay
+            isScheduled && isCreated
         }
         
         val todayOccurrences = occurrences.filter { it.scheduledEpochDay == todayEpochDay }.associateBy { it.habitId }
