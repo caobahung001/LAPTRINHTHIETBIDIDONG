@@ -50,12 +50,13 @@ class HabitRepository(private val db: HabitFlowDatabase) {
     suspend fun getUserStats(): UserStatsEntity = db.userStatsDao().get() ?: UserStatsEntity().also { db.userStatsDao().upsert(it) }
     suspend fun updateUserStats(stats: UserStatsEntity) = db.userStatsDao().upsert(stats)
 
-    // ĐÃ SỬA: Bổ sung tham số periodType và dùng Named Arguments để không bao giờ bị lệch vị trí tham số
     suspend fun addGoal(
         name: String,
         target: Double,
         type: GoalMetricType,
-        periodType: GoalPeriodType = GoalPeriodType.WEEKLY
+        periodType: GoalPeriodType = GoalPeriodType.WEEKLY,
+        linkedHabitId: String? = null,
+        contributionValue: Double = 1.0
     ) {
         require(name.isNotBlank() && target > 0)
         db.goalDao().upsert(
@@ -67,13 +68,15 @@ class HabitRepository(private val db: HabitFlowDatabase) {
                 targetValue = target,
                 currentValue = 0.0,
                 unit = if (type == GoalMetricType.OCCURRENCE_COUNT) "lần" else "đơn vị",
-                startEpochDay = LocalDate.now().toEpochDay()
+                startEpochDay = LocalDate.now().toEpochDay(),
+                linkedHabitId = linkedHabitId,
+                contributionValue = contributionValue
             )
         )
     }
 
     suspend fun addGoalProgress(goal: GoalEntity, value: Double) {
-        db.goalDao().upsert(goal.copy(currentValue = (goal.currentValue + value).coerceAtMost(goal.targetValue)))
+        db.goalDao().upsert(goal.copy(currentValue = (goal.currentValue + value).coerceIn(0.0, goal.targetValue)))
     }
 
     suspend fun getActiveHabitsDirect(): List<HabitEntity> = db.habitDao().all().filter { !it.archived }

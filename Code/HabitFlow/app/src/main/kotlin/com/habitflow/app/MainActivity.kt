@@ -1,8 +1,6 @@
 package com.habitflow.app
 
-import java.time.LocalDate
 import android.Manifest
-import androidx.compose.runtime.saveable.rememberSaveable
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,31 +9,38 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import java.time.DayOfWeek
 import java.util.Locale
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
@@ -50,9 +55,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HabitFlowApp(viewModel: MainViewModel) {
     val context = LocalContext.current
-    val settingsViewModel = remember {
-        SettingsViewModel(UserPreferencesDataSource(context.applicationContext))
-    }
+    val settingsViewModel: SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                return SettingsViewModel(UserPreferencesDataSource(context.applicationContext)) as T
+            }
+        }
+    )
     val settingsUiState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     
     var hasShownGreeting by remember { mutableStateOf(false) }
@@ -82,13 +92,28 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         darkColorScheme(
             primary = Color(0xFF39FF14), // Neon Green
             onPrimary = Color.Black,
-            secondary = Color(0xFF2C2C2E), // Dark Gray Block
-            onSecondary = Color.White,
-            surface = Color(0xFF121212),
-            onSurface = Color.White
+            primaryContainer = Color(0xFF1B3D06),
+            onPrimaryContainer = Color(0xFFC3FFB2),
+            secondaryContainer = Color(0xFF2C2C2E),
+            onSecondaryContainer = Color.White,
+            tertiaryContainer = Color(0xFF3D2F06),
+            onTertiaryContainer = Color(0xFFFFE1AC),
+            errorContainer = Color(0xFF420B0B),
+            onErrorContainer = Color(0xFFFFDAD6),
+            surface = Color(0xFF0F0F0F),
+            onSurface = Color.White,
+            surfaceVariant = Color(0xFF252525),
+            onSurfaceVariant = Color(0xFFCACACA)
         )
     } else {
-        lightColorScheme()
+        lightColorScheme(
+            primary = Color(0xFF2E7D32),
+            primaryContainer = Color(0xFFC8E6C9),
+            onPrimaryContainer = Color(0xFF00390A),
+            secondaryContainer = Color(0xFFF0F0F0),
+            tertiaryContainer = Color(0xFFFFF9C4),
+            errorContainer = Color(0xFFFFDAD6)
+        )
     }
 
     val view = androidx.compose.ui.platform.LocalView.current
@@ -103,62 +128,58 @@ fun HabitFlowApp(viewModel: MainViewModel) {
 
     MaterialTheme(colorScheme = colorScheme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
-        val labels = listOf("Hôm nay", "Thói quen", "Mục tiêu", "Thống kê", "Cài đặt")
-        val colors = listOf(
-            Color(0xFF2196F3), // Blue
-            Color(0xFF4CAF50), // Green
-            Color(0xFFFF9800), // Orange
-            Color(0xFF9C27B0), // Purple
-            Color(0xFF009688)  // Teal
+        val navItems = listOf(
+            NavItem("✓", "Hôm nay"),
+            NavItem("◎", "Thói quen"),
+            NavItem("◆", "Mục tiêu"),
+            NavItem("▥", "Thống kê"),
+            NavItem("⚙", "Cài đặt")
         )
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 Surface(
-                    modifier = Modifier.navigationBarsPadding(),
-                    shadowElevation = 8.dp,
-                    tonalElevation = 8.dp,
-                    color = MaterialTheme.colorScheme.surface
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp,
+                    shadowElevation = 10.dp
                 ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(70.dp)
-                ) {
-                    labels.forEachIndexed { index, label ->
-                        val isSelected = tab == index
-                        val baseColor = colors[index]
-                        
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (isSelected) baseColor else Color.Transparent)
-                                .clickable { tab = index }
-                                .padding(4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = label.take(1),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (isSelected) Color.White else baseColor
+                    NavigationBar(
+                        modifier = Modifier.navigationBarsPadding(),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp
+                    ) {
+                        navItems.forEachIndexed { index, item ->
+                            NavigationBarItem(
+                                selected = tab == index,
+                                onClick = { tab = index },
+                                icon = {
+                                    Text(
+                                        item.icon,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                label = { Text(item.label, maxLines = 1) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) Color.White else baseColor,
-                                    maxLines = 1
-                                )
-                            }
+                            )
                         }
                     }
                 }
             }
-        }) { padding ->
-            Box(Modifier.padding(padding).statusBarsPadding()) {
+        ) { innerPadding ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
                 when (tab) {
                     0 -> TodayScreen(viewModel, onNavigateToHabits = { tab = 1 })
                     1 -> HabitsScreen(viewModel)
@@ -174,6 +195,29 @@ fun HabitFlowApp(viewModel: MainViewModel) {
     }
 }
 
+data class NavItem(val icon: String, val label: String)
+
+@Composable
+fun ScreenHeader(
+    eyebrow: String,
+    title: String,
+    subtitle: String? = null,
+    trailing: @Composable (() -> Unit)? = null
+) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(eyebrow, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+            }
+            trailing?.invoke()
+        }
+        subtitle?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
 @Composable
 private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
     val habits by vm.habits.collectAsStateWithLifecycle()
@@ -182,229 +226,287 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
     val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
     var showLevelDetail by remember { mutableStateOf(false) }
 
+    val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
+    val todayEpochDay = remember(today) { today.toEpochDay() }
+    val currentDayOfWeek = remember(today) { today.dayOfWeek.value }
+    val tomorrow = remember(today) { today.plusDays(1) }
+    val tomorrowDayOfWeek = remember(tomorrow) { tomorrow.dayOfWeek.value }
+
+    val filteredHabits = remember(habits, currentDayOfWeek) {
+        habits.filter { it.scheduledDays.isEmpty() || it.scheduledDays.split(",").contains(currentDayOfWeek.toString()) }
+    }
+    val tomorrowHabits = remember(habits, tomorrowDayOfWeek) {
+        habits.filter { it.scheduledDays.isEmpty() || it.scheduledDays.split(",").contains(tomorrowDayOfWeek.toString()) }
+    }
+    val todayOccurrences = remember(occurrences, todayEpochDay) {
+        occurrences.filter { it.scheduledEpochDay == todayEpochDay }.associateBy { it.habitId }
+    }
+    val completedToday = filteredHabits.count {
+        todayOccurrences[it.id]?.status == OccurrenceStatus.COMPLETED
+    }
+    val dailyProgress = if (filteredHabits.isEmpty()) 0f else completedToday.toFloat() / filteredHabits.size
+    val dateText = remember(today) {
+        today.format(DateTimeFormatter.ofPattern("EEEE, dd 'tháng' MM", Locale("vi")))
+            .replaceFirstChar { it.uppercase() }
+    }
+
     if (showLevelDetail && userStats != null) {
         LevelDetailDialog(
             stats = userStats!!,
-            habits = habits,
             onSkipLevel = { vm.skipLevel() },
             onDismiss = { showLevelDetail = false }
         )
     }
 
-    // Lấy ngày hôm nay và lọc thói quen
-    val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
-    val todayEpochDay = remember(today) { today.toEpochDay() }
-    val currentDayOfWeek = remember(today) { today.dayOfWeek.value }
-
-    val dateFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale("vi")) }
-    val dateString = remember(today) { today.format(dateFormatter) }.replaceFirstChar { it.uppercase() }
-
-    val tomorrow = remember(today) { today.plusDays(1) }
-    val tomorrowDayOfWeek = remember(tomorrow) { tomorrow.dayOfWeek.value }
-
-    val filteredHabits = remember(habits, currentDayOfWeek) {
-        habits.filter { habit ->
-            habit.scheduledDays.isEmpty() || 
-            habit.scheduledDays.split(",").contains(currentDayOfWeek.toString())
-        }
-    }
-
-    val tomorrowHabits = remember(habits, tomorrowDayOfWeek) {
-        habits.filter { habit ->
-            habit.scheduledDays.isEmpty() || 
-            habit.scheduledDays.split(",").contains(tomorrowDayOfWeek.toString())
-        }
-    }
-
-    // Optimization: Pre-filter today's occurrences
-    val todayOccurrences = remember(occurrences, todayEpochDay) {
-        occurrences.filter { it.scheduledEpochDay == todayEpochDay }.associateBy { it.habitId }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(if (filteredHabits.size <= 2 && filteredHabits.isNotEmpty()) 24.dp else 14.dp)
     ) {
-        // XP and Level Header
-        userStats?.let { stats ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).clickable { showLevelDetail = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(stats.level.toString(), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleMedium)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Cấp độ ${stats.level}", style = MaterialTheme.typography.labelLarge)
-                            Text("${stats.xp} XP", style = MaterialTheme.typography.labelMedium)
-                        }
-                        val xpForNext = GamificationManager.getXpForNextLevel(stats.level)
-                        val xpForCurrent = GamificationManager.getXpForNextLevel(stats.level - 1)
-                        val progress = (stats.xp - xpForCurrent).toFloat() / (xpForNext - xpForCurrent).toFloat()
-                        LinearProgressIndicator(
-                            progress = { progress.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth().height(8.dp),
-                            strokeCap = StrokeCap.Round
-                        )
-                    }
-                    if (stats.streakFreezes > 0) {
-                        Spacer(Modifier.width(12.dp))
-                        Text("❄️ ${stats.streakFreezes}", style = MaterialTheme.typography.titleMedium)
+        item {
+            ScreenHeader(
+                eyebrow = dateText,
+                title = "Hôm nay",
+                subtitle = if (filteredHabits.isEmpty()) "Một ngày nhẹ nhàng cũng là một ngày có tiến bộ." else "$completedToday/${filteredHabits.size} thói quen đã hoàn thành",
+                trailing = {
+                    TextButton(onClick = vm::advanceTestDay) {
+                        Text("+1 ngày test", color = MaterialTheme.colorScheme.error)
                     }
                 }
-            }
+            )
         }
 
-        Text(dateString, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.secondary)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Hôm nay", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { vm.advanceTestDay() }) {
-                Text("next day(test)", color = MaterialTheme.colorScheme.error)
+        userStats?.let { stats ->
+            item {
+                LevelHeroCard(
+                    stats = stats,
+                    dailyProgress = dailyProgress,
+                    completedToday = completedToday,
+                    totalToday = filteredHabits.size,
+                    onClick = { showLevelDetail = true }
+                )
             }
         }
-        Spacer(Modifier.height(12.dp))
 
         if (filteredHabits.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text("Không có thói quen nào cho hôm nay.", style = MaterialTheme.typography.bodyLarge)
-                Button(onClick = onNavigateToHabits) {
-                    Text("Thêm thói quen ngay")
-                }
-            }
-        }
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(filteredHabits, key = { it.id }) { habit ->
-                val todayOccurrence = todayOccurrences[habit.id]
-
-                val cardColor = when (todayOccurrence?.status) {
-                    OccurrenceStatus.COMPLETED -> Color(0xFFC8E6C9)
-                    OccurrenceStatus.SKIPPED -> Color(0xFFE1BEE7)
-                    OccurrenceStatus.FROZEN -> Color(0xFFBBDEFB)
-                    OccurrenceStatus.MISSED -> Color(0xFFFFCDD2)
-                    else -> MaterialTheme.colorScheme.surfaceVariant
-                }
-
-                val cardContentColor = if (todayOccurrence != null) Color(0xFF1C1B1F) else contentColorFor(cardColor)
-
-                Card(
+            item {
+                ElevatedCard(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = cardColor,
-                        contentColor = cardContentColor
-                    )
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(habit.name, style = MaterialTheme.typography.titleMedium)
-                            if (habit.scheduledTime != null) {
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    habit.scheduledTime,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (todayOccurrence != null) Color(0xFF49454F) else MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                        }
-                        if (habit.description.isNotBlank()) {
-                            Text(habit.description)
-                        }
-
-                        // Hiển thị trạng thái nếu hôm nay đã bấm nút
-                        if (todayOccurrence != null) {
-                            val statusText = when (todayOccurrence.status) {
-                                OccurrenceStatus.COMPLETED -> "Đã hoàn thành"
-                                OccurrenceStatus.SKIPPED -> "Đã bỏ qua"
-                                OccurrenceStatus.FROZEN -> "Đã đóng băng chuỗi ❄️"
-                                OccurrenceStatus.MISSED -> "Đã bỏ lỡ"
-                                OccurrenceStatus.PENDING -> "Đang chờ"
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = statusText,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (todayOccurrence.status == OccurrenceStatus.MISSED) Color.White else Color(0xFF1B5E20)
-                                )
-                                TextButton(
-                                    onClick = { vm.unmark(habit.id, todayEpochDay) },
-                                    colors = ButtonDefaults.textButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondary,
-                                        contentColor = MaterialTheme.colorScheme.onSecondary
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text("Thay đổi")
-                                }
-                            }
-                        } else {
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = { vm.mark(habit.id, OccurrenceStatus.COMPLETED) },
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text("Xong")
-                                }
-                                OutlinedButton(
-                                    onClick = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                ) {
-                                    Text("Bỏ qua")
-                                }
-                                if ((userStats?.streakFreezes ?: 0) > 0) {
-                                    OutlinedButton(
-                                        onClick = { vm.useStreakFreeze(habit.id) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                    ) {
-                                        Text("❄️")
-                                    }
-                                }
-                                if ((userStats?.skipsAvailable ?: 0) > 0) {
-                                    OutlinedButton(
-                                        onClick = { vm.useSkip(habit.id) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                    ) {
-                                        Text("⏭️")
-                                    }
-                                }
-                            }
-                        }
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("🌱", style = MaterialTheme.typography.displaySmall)
+                        Spacer(Modifier.height(10.dp))
+                        Text("Chưa có việc cần làm hôm nay", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Tạo thói quen đầu tiên để HabitFlow bắt đầu theo dõi tiến độ cho bạn.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = onNavigateToHabits,
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("Thêm thói quen") }
                     }
                 }
             }
+        } else {
+            item { SectionTitle("Việc cần làm", "Tập trung vào từng việc nhỏ") }
+            items(filteredHabits, key = { it.id }) { habit ->
+                HabitTodayCard(
+                    habit = habit,
+                    occurrence = todayOccurrences[habit.id],
+                    streakFreezes = userStats?.streakFreezes ?: 0,
+                    skipsAvailable = userStats?.skipsAvailable ?: 0,
+                    onComplete = { vm.mark(habit.id, OccurrenceStatus.COMPLETED) },
+                    onSkip = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
+                    onFreeze = { vm.useStreakFreeze(habit.id) },
+                    onUseSkip = { vm.useSkip(habit.id) },
+                    onReset = { vm.unmark(habit.id, todayEpochDay) },
+                    modifier = if (filteredHabits.size <= 2) Modifier.heightIn(min = 130.dp) else Modifier
+                )
+            }
+        }
 
-            if (tomorrowHabits.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(16.dp))
-                    Text("Ngày mai", style = MaterialTheme.typography.titleMedium)
-                }
-                items(tomorrowHabits, key = { "tomorrow_${it.id}" }) { habit ->
-                    OutlinedCard(Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(habit.name, style = MaterialTheme.typography.bodyLarge)
-                            if (habit.scheduledTime != null) {
-                                Spacer(Modifier.width(8.dp))
-                                Text(habit.scheduledTime, style = MaterialTheme.typography.labelSmall)
+        if (tomorrowHabits.isNotEmpty()) {
+            item { SectionTitle("Ngày mai", "Chuẩn bị trước để giữ nhịp") }
+            items(tomorrowHabits, key = { "tomorrow_${it.id}" }) { habit ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                            Text("→", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(habit.name, fontWeight = FontWeight.SemiBold)
+                            if (habit.description.isNotBlank()) {
+                                Text(habit.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                        }
+                        habit.scheduledTime?.let { TimePill(it) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LevelHeroCard(
+    stats: UserStatsEntity,
+    dailyProgress: Float,
+    completedToday: Int,
+    totalToday: Int,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(54.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(stats.level.toString(), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Cấp độ ${stats.level}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    val xpForNext = GamificationManager.getXpForNextLevel(stats.level)
+                    val xpForCurrent = GamificationManager.getXpForNextLevel(stats.level - 1)
+                    val progress = if (xpForNext > xpForCurrent) (stats.xp - xpForCurrent).toFloat() / (xpForNext - xpForCurrent).toFloat() else 0f
+                    
+                    Spacer(Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)
+                    )
+                    Text("${stats.xp} XP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                }
+            }
+            
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Tiến độ ngày", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                    Text("$completedToday / $totalToday", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                }
+                Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { dailyProgress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxSize(),
+                        strokeWidth = 4.dp,
+                        strokeCap = StrokeCap.Round
+                    )
+                    if (dailyProgress >= 1f) Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HabitTodayCard(
+    habit: HabitEntity,
+    occurrence: OccurrenceEntity?,
+    streakFreezes: Int,
+    skipsAvailable: Int,
+    onComplete: () -> Unit,
+    onSkip: () -> Unit,
+    onFreeze: () -> Unit,
+    onUseSkip: () -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val container = when (occurrence?.status) {
+        OccurrenceStatus.COMPLETED -> MaterialTheme.colorScheme.secondaryContainer
+        OccurrenceStatus.SKIPPED -> MaterialTheme.colorScheme.tertiaryContainer
+        OccurrenceStatus.FROZEN -> MaterialTheme.colorScheme.primaryContainer
+        OccurrenceStatus.MISSED -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.surface
+    }
+
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = container),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (occurrence == null) 2.dp else 0.dp)
+    ) {
+        Column(Modifier.padding(17.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(38.dp),
+                    shape = CircleShape,
+                    color = if (occurrence?.status == OccurrenceStatus.COMPLETED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            if (occurrence?.status == OccurrenceStatus.COMPLETED) "✓" else "•",
+                            color = if (occurrence?.status == OccurrenceStatus.COMPLETED) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(habit.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (habit.description.isNotBlank()) {
+                        Text(habit.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                habit.scheduledTime?.let { TimePill(it) }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            if (occurrence != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusPill(occurrence.status)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onReset) { Text("Thay đổi") }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onComplete,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("Hoàn thành") }
+                    OutlinedButton(
+                        onClick = onSkip,
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("Bỏ qua") }
+                }
+                if (streakFreezes > 0 || skipsAvailable > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (streakFreezes > 0) {
+                            AssistChip(onClick = onFreeze, label = { Text("❄ Đóng băng") })
+                        }
+                        if (skipsAvailable > 0) {
+                            AssistChip(onClick = onUseSkip, label = { Text("⏭ Vé bỏ qua") })
                         }
                     }
                 }
@@ -412,350 +514,507 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun StatusPill(status: OccurrenceStatus) {
+    val (text, color) = when (status) {
+        OccurrenceStatus.COMPLETED -> "Đã xong" to MaterialTheme.colorScheme.primary
+        OccurrenceStatus.SKIPPED -> "Đã bỏ qua" to MaterialTheme.colorScheme.tertiary
+        OccurrenceStatus.FROZEN -> "Đã đóng băng" to MaterialTheme.colorScheme.primary
+        OccurrenceStatus.MISSED -> "Bỏ lỡ" to MaterialTheme.colorScheme.error
+        OccurrenceStatus.PENDING -> "Chờ" to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.15f)) {
+        Text(text, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun TimePill(time: String) {
+    Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Text("◷ $time", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+fun SectionTitle(title: String, subtitle: String? = null) {
+    Column(Modifier.padding(top = 10.dp, bottom = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        subtitle?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
 @Composable
 fun GoalsScreen(vm: MainViewModel) {
     val goals by vm.goals.collectAsStateWithLifecycle()
+    val habits by vm.habits.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
     var target by remember { mutableStateOf("10") }
+    var unit by remember { mutableStateOf("lần") }
     var type by remember { mutableStateOf(GoalMetricType.OCCURRENCE_COUNT) }
+    var period by remember { mutableStateOf(GoalPeriodType.WEEKLY) }
+    
+    var linkedHabitId by remember { mutableStateOf<String?>(null) }
+    var contribution by remember { mutableStateOf("1") }
+    var expandedHabitMenu by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("Mục tiêu", style = MaterialTheme.typography.headlineMedium)
-
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Tên mục tiêu") }
-        )
-
-        OutlinedTextField(
-            value = target,
-            onValueChange = { target = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Giá trị mục tiêu") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = type == GoalMetricType.OCCURRENCE_COUNT,
-                onClick = { type = GoalMetricType.OCCURRENCE_COUNT },
-                label = { Text("Theo số lần") }
-            )
-            FilterChip(
-                selected = type == GoalMetricType.ACCUMULATED_VALUE,
-                onClick = { type = GoalMetricType.ACCUMULATED_VALUE },
-                label = { Text("Theo giá trị") }
-            )
+        item {
+            ScreenHeader(eyebrow = "Thử thách", title = "Mục tiêu", subtitle = "Đặt ra các cột mốc để rèn luyện ý chí mỗi ngày.")
         }
+        item {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Mục tiêu mới", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Tên mục tiêu") },
+                        shape = RoundedCornerShape(14.dp)
+                    )
 
-        Button(
-            onClick = {
-                target.toDoubleOrNull()?.let { targetVal ->
-                    if (name.isNotBlank() && targetVal > 0) {
-                        // Đã sửa: Truyền đúng 3 tham số theo MainViewModel
-                        vm.addGoal(name, targetVal, type)
-                        name = ""
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Tạo mục tiêu")
-        }
-
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.weight(1f)
-        ) {
-            items(goals, key = { it.id }) { goal ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(goal.name, style = MaterialTheme.typography.titleMedium)
-
-                        LinearProgressIndicator(
-                            progress = { (goal.currentValue / goal.targetValue).toFloat().coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth()
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = target,
+                            onValueChange = { target = it },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Mục tiêu") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(14.dp)
                         )
+                        OutlinedTextField(
+                            value = unit,
+                            onValueChange = { unit = it },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Đơn vị") },
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                    }
 
-                        Row(
+                    Text("Loại & Chu kỳ", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = type == GoalMetricType.OCCURRENCE_COUNT,
+                            onClick = { type = GoalMetricType.OCCURRENCE_COUNT },
+                            label = { Text("Số lần") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = type == GoalMetricType.ACCUMULATED_VALUE,
+                            onClick = { type = GoalMetricType.ACCUMULATED_VALUE },
+                            label = { Text("Giá trị") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GoalPeriodType.entries.forEach { p ->
+                            FilterChip(
+                                selected = period == p,
+                                onClick = { period = p },
+                                label = { Text(when(p){
+                                    GoalPeriodType.WEEKLY -> "Tuần"
+                                    GoalPeriodType.MONTHLY -> "Tháng"
+                                    GoalPeriodType.CUSTOM -> "Tùy ý"
+                                }) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    
+                    Text("Liên kết thói quen (Tùy chọn)", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Box {
+                        OutlinedCard(
+                            onClick = { expandedHabitMenu = true },
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("${goal.currentValue} / ${goal.targetValue} ${goal.unit}")
-
-                            val periodText = when (goal.periodType) {
-                                GoalPeriodType.WEEKLY -> "Hàng tuần"
-                                GoalPeriodType.MONTHLY -> "Hàng tháng"
-                                GoalPeriodType.CUSTOM -> "Tùy chỉnh"
+                            val selectedHabitName = habits.find { it.id == linkedHabitId }?.name ?: "Chưa liên kết"
+                            Text(
+                                text = "🔗 $selectedHabitName",
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        DropdownMenu(expanded = expandedHabitMenu, onDismissRequest = { expandedHabitMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Không liên kết") },
+                                onClick = { linkedHabitId = null; expandedHabitMenu = false }
+                            )
+                            habits.forEach { habit ->
+                                DropdownMenuItem(
+                                    text = { Text(habit.name) },
+                                    onClick = { linkedHabitId = habit.id; expandedHabitMenu = false }
+                                )
                             }
-                            Text("Chu kỳ: $periodText")
                         }
+                    }
 
-                        TextButton(
-                            onClick = { vm.addGoalProgress(goal, 1.0) },
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("+1 tiến độ")
+                    if (linkedHabitId != null) {
+                        OutlinedTextField(
+                            value = contribution,
+                            onValueChange = { contribution = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Tiến độ cộng thêm mỗi lần xong thói quen") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val targetVal = target.toDoubleOrNull() ?: 0.0
+                            val contribVal = contribution.toDoubleOrNull() ?: 1.0
+                            if (name.isNotBlank() && targetVal > 0) {
+                                vm.addGoal(name, targetVal, type, period, linkedHabitId, contribVal)
+                                name = ""
+                                linkedHabitId = null
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) { Text("Tạo mục tiêu") }
+                }
+            }
+        }
+        items(goals, key = { it.id }) { goal ->
+            ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(goal.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (goal.linkedHabitId != null) {
+                            val habitName = habits.find { it.id == goal.linkedHabitId }?.name ?: "Habit"
+                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                                Text("🔗 $habitName", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall)
+                            }
                         }
+                    }
+                    
+                    LinearProgressIndicator(
+                        progress = { (goal.currentValue / goal.targetValue).toFloat().coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                        strokeCap = StrokeCap.Round
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${goal.currentValue.toInt()} / ${goal.targetValue.toInt()} ${goal.unit}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        val periodText = when (goal.periodType) {
+                            GoalPeriodType.WEEKLY -> "Tuần"
+                            GoalPeriodType.MONTHLY -> "Tháng"
+                            GoalPeriodType.CUSTOM -> "Tùy chỉnh"
+                        }
+                        Text("Chu kỳ: $periodText", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    
+                    Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { vm.addGoalProgress(goal, -1.0) }) { Text("-1") }
+                        Button(onClick = { vm.addGoalProgress(goal, 1.0) }, shape = RoundedCornerShape(8.dp)) { Text("+1") }
                     }
                 }
             }
         }
     }
 }
+
 @Composable
 private fun StatisticsScreen(vm: MainViewModel) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val habits by vm.habits.collectAsStateWithLifecycle()
     val occurrences by vm.occurrences.collectAsStateWithLifecycle()
     val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
-
     val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
     var selectedYearMonth by remember { mutableStateOf(YearMonth.from(today)) }
-    
-    val daysInMonth = selectedYearMonth.lengthOfMonth()
-    val firstDayOfMonth = selectedYearMonth.atDay(1)
-    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // 1 (Mon) to 7 (Sun)
 
-    // Optimization: Pre-calculate habits for each day of week
+    val daysInMonth = selectedYearMonth.lengthOfMonth()
+    val firstDayOfWeek = selectedYearMonth.atDay(1).dayOfWeek.value
     val habitsByDayOfWeek = remember(habits) {
         (1..7).associateWith { dayNum ->
-            habits.filter { habit ->
-                habit.scheduledDays.isEmpty() || 
-                habit.scheduledDays.split(",").contains(dayNum.toString())
-            }
+            habits.filter { it.scheduledDays.isEmpty() || it.scheduledDays.split(",").contains(dayNum.toString()) }
         }
     }
+    val occurrencesByEpochDay = remember(occurrences) { occurrences.groupBy { it.scheduledEpochDay } }
 
-    // Optimization: Pre-calculate occurrences for each epoch day
-    val occurrencesByEpochDay = remember(occurrences) {
-        occurrences.groupBy { it.scheduledEpochDay }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("Thống kê", style = MaterialTheme.typography.headlineMedium)
-        
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { selectedYearMonth = selectedYearMonth.minusMonths(1) }) {
-                        Text("<")
+        item {
+            ScreenHeader(
+                eyebrow = "Tổng quan",
+                title = "Thống kê",
+                subtitle = "Nhìn lại nhịp duy trì và chuỗi tiến bộ của bạn."
+            )
+        }
+        item {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            progress = { (stats.completionRate / 100.0).toFloat().coerceIn(0f, 1f) },
+                            modifier = Modifier.size(78.dp),
+                            strokeWidth = 8.dp,
+                            trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                        )
+                        Text("${stats.completionRate.toInt()}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
-                    Text(
-                        text = selectedYearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("vi"))).replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    IconButton(onClick = { selectedYearMonth = selectedYearMonth.plusMonths(1) }) {
-                        Text(">")
-                    }
-                }
-                
-                // Grid header: T2 to CN
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
-                        Text(day, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    }
-                }
-
-                // Calendar Grid
-                val days = remember(selectedYearMonth, firstDayOfWeek, daysInMonth) {
-                    val list = mutableListOf<LocalDate?>()
-                    for (i in 1 until firstDayOfWeek) { list.add(null) }
-                    for (i in 1..daysInMonth) { list.add(selectedYearMonth.atDay(i)) }
-                    list
-                }
-                
-                val chunks = remember(days) { days.chunked(7) }
-                chunks.forEach { week ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        week.forEach { date ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .padding(2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (date != null) {
-                                    val epochDay = date.toEpochDay()
-                                    val dayOccurrences = occurrencesByEpochDay[epochDay] ?: emptyList()
-                                    
-                                    // Filter habits that existed on this day
-                                    val dayHabits = habitsByDayOfWeek[date.dayOfWeek.value]?.filter { 
-                                        it.createdAt / 86400000 <= epochDay 
-                                    } ?: emptyList()
-                                    
-                                    val completed = dayOccurrences.count { it.status == OccurrenceStatus.COMPLETED }
-                                    val frozen = dayOccurrences.any { it.status == OccurrenceStatus.FROZEN }
-                                    val total = dayHabits.size
-                                    
-                                    val isFuture = epochDay > today.toEpochDay()
-                                    
-                                    val color = when {
-                                        total == 0 || isFuture -> MaterialTheme.colorScheme.surfaceVariant
-                                        frozen -> Color(0xFF2196F3) // Blue for Frozen
-                                        completed * 2 >= total -> Color(0xFFC8E6C9) // Green (>= 50%)
-                                        completed > 0 -> Color(0xFFFFF9C4) // Yellow (< 50%)
-                                        else -> Color(0xFFFFCDD2) // Light red (0%)
-                                    }
-
-                                    val cellTextColor = if (total == 0 || isFuture) {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    } else {
-                                        Color(0xFF1C1B1F) // Dark text for light colored cells
-                                    }
-
-                                    Surface(
-                                        modifier = Modifier.fillMaxSize(),
-                                        color = color,
-                                        contentColor = cellTextColor,
-                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
-                                        border = if (date == today) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (week.size < 7) {
-                            repeat(7 - week.size) {
-                                Spacer(Modifier.weight(1f))
-                            }
-                        }
+                    Spacer(Modifier.width(18.dp))
+                    Column {
+                        Text("Tỷ lệ hoàn thành", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("${stats.completed} lần hoàn thành", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Tuần ${stats.weeklyCompletionRate.toInt()}% • Tháng ${stats.monthlyCompletionRate.toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
                     }
                 }
             }
         }
-
-        Text("Tỷ lệ hoàn thành: ${"%.1f".format(stats.completionRate)}%")
-        LinearProgressIndicator(progress = { (stats.completionRate / 100.0).toFloat() }, modifier = Modifier.fillMaxWidth())
-        
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Hoàn thành", stats.completed.toString(), Modifier.weight(1f))
-            StatCard("Bỏ lỡ", stats.missed.toString(), Modifier.weight(1f))
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatCard("Hoàn thành", stats.completed.toString(), "✓", Modifier.weight(1f))
+                StatCard("Bỏ lỡ", stats.missed.toString(), "×", Modifier.weight(1f))
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Bỏ qua", stats.skipped.toString(), Modifier.weight(1f))
-            StatCard("Đóng băng", stats.frozen.toString(), Modifier.weight(1f))
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatCard("Bỏ qua", stats.skipped.toString(), "↷", Modifier.weight(1f))
+                StatCard("Đóng băng", stats.frozen.toString(), "❄", Modifier.weight(1f))
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Chuỗi hiện tại", stats.currentStreak.toString(), Modifier.weight(1f))
-            StatCard("Chuỗi dài nhất", stats.longestStreak.toString(), Modifier.weight(1f))
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatCard("Chuỗi hiện tại", stats.currentStreak.toString(), "🔥", Modifier.weight(1f))
+                StatCard("Dài nhất", stats.longestStreak.toString(), "★", Modifier.weight(1f))
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatCard("Tỷ lệ tuần", "${stats.weeklyCompletionRate.toInt()}%", Modifier.weight(1f))
-            StatCard("Tỷ lệ tháng", "${stats.monthlyCompletionRate.toInt()}%", Modifier.weight(1f))
+        item {
+            CalendarCard(
+                selectedYearMonth = selectedYearMonth,
+                today = today,
+                daysInMonth = daysInMonth,
+                firstDayOfWeek = firstDayOfWeek,
+                habitsByDayOfWeek = habitsByDayOfWeek,
+                occurrencesByEpochDay = occurrencesByEpochDay,
+                onPrevious = { selectedYearMonth = selectedYearMonth.minusMonths(1) },
+                onNext = { selectedYearMonth = selectedYearMonth.plusMonths(1) }
+            )
         }
     }
 }
 
 @Composable
-private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier) {
-        Column(Modifier.padding(12.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium)
-            Text(value, style = MaterialTheme.typography.headlineSmall)
+private fun StatCard(label: String, value: String, icon: String, modifier: Modifier = Modifier) {
+    ElevatedCard(modifier, shape = RoundedCornerShape(20.dp)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text(icon, style = MaterialTheme.typography.titleMedium) }
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+            }
         }
+    }
+}
+
+@Composable
+private fun CalendarCard(
+    selectedYearMonth: YearMonth,
+    today: LocalDate,
+    daysInMonth: Int,
+    firstDayOfWeek: Int,
+    habitsByDayOfWeek: Map<Int, List<HabitEntity>>,
+    occurrencesByEpochDay: Map<Long, List<OccurrenceEntity>>,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
+) {
+    val days = remember(selectedYearMonth, firstDayOfWeek, daysInMonth) {
+        buildList<LocalDate?> {
+            repeat(firstDayOfWeek - 1) { add(null) }
+            for (day in 1..daysInMonth) add(selectedYearMonth.atDay(day))
+        }
+    }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Lịch duy trì", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        selectedYearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("vi"))).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FilledTonalButton(onClick = onPrevious, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("‹") }
+                Spacer(Modifier.width(6.dp))
+                FilledTonalButton(onClick = onNext, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("›") }
+            }
+
+            Row(Modifier.fillMaxWidth()) {
+                listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
+                    Text(day, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            days.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth()) {
+                    week.forEach { date ->
+                        CalendarDayCell(
+                            date = date,
+                            today = today,
+                            habitsByDayOfWeek = habitsByDayOfWeek,
+                            occurrencesByEpochDay = occurrencesByEpochDay,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    repeat(7 - week.size) { Spacer(Modifier.weight(1f).aspectRatio(1f)) }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LegendDot(MaterialTheme.colorScheme.secondaryContainer, "Tốt")
+                LegendDot(MaterialTheme.colorScheme.tertiaryContainer, "Một phần")
+                LegendDot(MaterialTheme.colorScheme.errorContainer, "Chưa đạt")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarDayCell(
+    date: LocalDate?,
+    today: LocalDate,
+    habitsByDayOfWeek: Map<Int, List<HabitEntity>>,
+    occurrencesByEpochDay: Map<Long, List<OccurrenceEntity>>,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.aspectRatio(1f).padding(2.dp), contentAlignment = Alignment.Center) {
+        if (date != null) {
+            val epochDay = date.toEpochDay()
+            val dayOccurrences = occurrencesByEpochDay[epochDay] ?: emptyList()
+            val dayHabits = habitsByDayOfWeek[date.dayOfWeek.value]?.filter { it.createdAt / 86400000 <= epochDay } ?: emptyList()
+            val completed = dayOccurrences.count { it.status == OccurrenceStatus.COMPLETED }
+            val frozen = dayOccurrences.any { it.status == OccurrenceStatus.FROZEN }
+            val total = dayHabits.size
+            val future = epochDay > today.toEpochDay()
+            val color = when {
+                total == 0 || future -> MaterialTheme.colorScheme.surfaceVariant
+                frozen -> MaterialTheme.colorScheme.primaryContainer
+                completed * 2 >= total -> MaterialTheme.colorScheme.secondaryContainer
+                completed > 0 -> MaterialTheme.colorScheme.tertiaryContainer
+                date == today -> MaterialTheme.colorScheme.surfaceVariant
+                else -> MaterialTheme.colorScheme.errorContainer
+            }
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(10.dp),
+                color = color,
+                border = if (date == today) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = if (date == today) FontWeight.Bold else FontWeight.Normal)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).background(color, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 fun LevelDetailDialog(
     stats: UserStatsEntity,
-    habits: List<HabitEntity>,
     onSkipLevel: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { 
+        shape = RoundedCornerShape(28.dp),
+        title = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Chi tiết cấp độ", style = MaterialTheme.typography.headlineSmall)
-                TextButton(onClick = onSkipLevel) {
-                    Text("Skip Level(Test)", color = MaterialTheme.colorScheme.error)
-                }
+                Text("Trạng thái của bạn", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                IconButton(onClick = onSkipLevel) { Text("⚡", color = MaterialTheme.colorScheme.error) }
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // XP Progress
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 val xpForNext = GamificationManager.getXpForNextLevel(stats.level)
                 val xpForCurrent = GamificationManager.getXpForNextLevel(stats.level - 1)
-                val progress = (stats.xp - xpForCurrent).toFloat() / (xpForNext - xpForCurrent).toFloat()
-                
+                val progress = if (xpForNext > xpForCurrent) (stats.xp - xpForCurrent).toFloat() / (xpForNext - xpForCurrent).toFloat() else 0f
+
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Tiến trình XP", style = MaterialTheme.typography.labelLarge)
+                        Text("Tiến trình Cấp ${stats.level}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                         Text("${stats.xp} / $xpForNext XP", style = MaterialTheme.typography.labelMedium)
                     }
+                    Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { progress.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(8.dp).padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().height(10.dp).clip(CircleShape),
                         strokeCap = StrokeCap.Round
                     )
                 }
 
-                // Skills Inventory
-                Text("Kỹ năng khả dụng", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SkillItem("❄️ Đóng băng", stats.streakFreezes.toString(), MaterialTheme.colorScheme.primaryContainer)
-                    SkillItem("⏭️ Bỏ qua", stats.skipsAvailable.toString(), MaterialTheme.colorScheme.secondaryContainer)
+                Column {
+                    Text("Kho kỹ năng", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SkillItem("❄️ Đóng băng", stats.streakFreezes.toString(), Modifier.weight(1f))
+                        SkillItem("⏭️ Vé bỏ qua", stats.skipsAvailable.toString(), Modifier.weight(1f))
+                    }
                 }
 
-                // Habit Stats Summary
-                Text("Tổng quan thói quen", style = MaterialTheme.typography.labelLarge)
-                Text("Đang thực hiện: ${habits.size} thói quen", style = MaterialTheme.typography.bodyMedium)
-
-                // Upcoming Rewards
-                Text("Phần thưởng sắp tới", style = MaterialTheme.typography.labelLarge)
-                val rewards = GamificationManager.getUpcomingRewards(stats.level)
-                rewards.forEach { reward ->
-                    Text("• $reward", style = MaterialTheme.typography.bodySmall)
+                Column {
+                    Text("Phần thưởng tiếp theo", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    GamificationManager.getUpcomingRewards(stats.level).forEach { reward ->
+                        Text("• $reward", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Đóng") }
+            Button(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) { Text("Đóng") }
         }
     )
 }
 
 @Composable
-private fun SkillItem(label: String, count: String, color: androidx.compose.ui.graphics.Color) {
+private fun SkillItem(label: String, count: String, modifier: Modifier = Modifier) {
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = color,
-        modifier = Modifier.height(60.dp)
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier
     ) {
-        Column(
-            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label, style = MaterialTheme.typography.labelSmall)
-            Text(count, style = MaterialTheme.typography.titleMedium)
+            Text(count, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
         }
     }
 }

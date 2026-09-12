@@ -72,22 +72,11 @@ fun HabitsScreen(vm: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Column {
-                Text(
-                    "XÂY NỀN NẾP",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("Thói quen", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Tạo lịch lặp lại rõ ràng, sau đó chỉ cần tập trung hoàn thành từng ngày.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            ScreenHeader(
+                eyebrow = "Xây nền nếp",
+                title = "Thói quen",
+                subtitle = "Tạo lịch lặp lại rõ ràng, sau đó chỉ cần tập trung hoàn thành từng ngày."
+            )
         }
 
         item {
@@ -189,26 +178,14 @@ fun HabitsScreen(vm: MainViewModel) {
 
         if (habits.isEmpty()) {
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                ) {
-                    Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🌿", style = MaterialTheme.typography.headlineMedium)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Danh sách đang trống", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Thêm một thói quen ở phía trên để bắt đầu.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                EmptyCompactCard(
+                    icon = "🌿",
+                    title = "Danh sách đang trống",
+                    subtitle = "Thêm một thói quen ở phía trên để bắt đầu."
+                )
             }
         } else {
-            item {
-                Column {
-                    Text("Đang hoạt động", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("${habits.size} thói quen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            item { SectionTitle("Đang hoạt động", "${habits.size} thói quen") }
             items(habits, key = { it.id }) { habit ->
                 HabitManageCard(
                     habit = habit,
@@ -216,6 +193,22 @@ fun HabitsScreen(vm: MainViewModel) {
                     onDelete = { habitToDelete = habit }
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun EmptyCompactCard(icon: String, title: String, subtitle: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    ) {
+        Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(icon, style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
