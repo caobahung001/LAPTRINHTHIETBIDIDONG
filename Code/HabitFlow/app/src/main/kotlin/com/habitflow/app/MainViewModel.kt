@@ -90,6 +90,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (status == OccurrenceStatus.COMPLETED) {
             val habitStats = stats.value
             GamificationManager.processCompletion(repository, habitStats.currentStreak, todayEpochDay)
+            
+            // Auto-progress linked goals
+            goals.value.filter { it.linkedHabitId == id }.forEach { goal ->
+                repository.addGoalProgress(goal, goal.contributionValue)
+            }
         }
         updateWidget()
     }
@@ -121,11 +126,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (existing?.status == OccurrenceStatus.COMPLETED) {
             val habitStats = stats.value
             GamificationManager.processReset(repository, habitStats.currentStreak, dateEpochDay)
+            
+            // Undo goal progress
+            goals.value.filter { it.linkedHabitId == id }.forEach { goal ->
+                repository.addGoalProgress(goal, -goal.contributionValue)
+            }
         }
         repository.unmark(id, dateEpochDay)
         updateWidget()
     }
-    fun addGoal(name: String, target: Double, type: GoalMetricType) = viewModelScope.launch { repository.addGoal(name, target, type) }
+    fun addGoal(name: String, target: Double, type: GoalMetricType, periodType: GoalPeriodType, linkedHabitId: String?, contributionValue: Double) = viewModelScope.launch { 
+        repository.addGoal(name, target, type, periodType, linkedHabitId, contributionValue) 
+    }
     fun addGoalProgress(goal: GoalEntity, value: Double) = viewModelScope.launch { repository.addGoalProgress(goal, value) }
     suspend fun exportJson(): String = repository.exportJson()
     suspend fun restoreJson(text: String) = repository.restoreJson(text)
