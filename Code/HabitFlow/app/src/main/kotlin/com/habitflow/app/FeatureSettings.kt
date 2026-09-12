@@ -40,6 +40,7 @@ enum class AppTheme { SYSTEM, LIGHT, DARK }
 data class UserPreferences(
     val appTheme: AppTheme = AppTheme.SYSTEM,
     val isNotificationEnabled: Boolean = true,
+    val isHapticEnabled: Boolean = true,
     val greetingMessage: String = ""
 )
 
@@ -49,6 +50,7 @@ class UserPreferencesDataSource(private val context: Context) {
     private object Keys {
         val APP_THEME = stringPreferencesKey("app_theme")
         val NOTIFICATION_ENABLED = booleanPreferencesKey("notification_enabled")
+        val HAPTIC_ENABLED = booleanPreferencesKey("haptic_enabled")
         val GREETING_MESSAGE = stringPreferencesKey("greeting_message")
     }
 
@@ -60,11 +62,13 @@ class UserPreferencesDataSource(private val context: Context) {
             val themeName = preferences[Keys.APP_THEME] ?: AppTheme.SYSTEM.name
             val theme = try { AppTheme.valueOf(themeName) } catch (e: Exception) { AppTheme.SYSTEM }
             val isNotificationEnabled = preferences[Keys.NOTIFICATION_ENABLED] ?: true
+            val isHapticEnabled = preferences[Keys.HAPTIC_ENABLED] ?: true
             val greetingMessage = preferences[Keys.GREETING_MESSAGE] ?: "Ngày mới lại bắt đầu rồi"
 
             UserPreferences(
                 appTheme = theme,
                 isNotificationEnabled = isNotificationEnabled,
+                isHapticEnabled = isHapticEnabled,
                 greetingMessage = greetingMessage
             )
         }
@@ -75,6 +79,10 @@ class UserPreferencesDataSource(private val context: Context) {
 
     suspend fun setNotificationEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.NOTIFICATION_ENABLED] = enabled }
+    }
+
+    suspend fun setHapticEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.HAPTIC_ENABLED] = enabled }
     }
 
     suspend fun updateGreetingMessage(greeting: String) {
@@ -106,6 +114,10 @@ class SettingsViewModel(
 
     fun onNotificationToggled(enabled: Boolean) {
         viewModelScope.launch { preferencesDataSource.setNotificationEnabled(enabled) }
+    }
+
+    fun onHapticToggled(enabled: Boolean) {
+        viewModelScope.launch { preferencesDataSource.setHapticEnabled(enabled) }
     }
 
     fun onGreetingChanged(greeting: String) {
@@ -568,12 +580,27 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Nhắc nhở thói quen", style = MaterialTheme.typography.titleMedium)
-            if (habits.isNotEmpty()) {
-                Button(onClick = {
-                    selectedReminderForEdit = null
-                    showReminderDialog = true
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    val habit = habits.firstOrNull()
+                    NotificationHelper.showNotification(
+                        context = context,
+                        notificationId = 888,
+                        habitId = habit?.id ?: "",
+                        habitName = habit?.name ?: "Đọc sách 30 phút",
+                        note = "Đã đến giờ thực hiện thói quen của bạn!"
+                    )
+                    message = "Đã gửi thông báo nhắc nhở thử nghiệm"
                 }) {
-                    Text("+ Thêm mới")
+                    Text("Thử chuông")
+                }
+                if (habits.isNotEmpty()) {
+                    Button(onClick = {
+                        selectedReminderForEdit = null
+                        showReminderDialog = true
+                    }) {
+                        Text("+ Thêm")
+                    }
                 }
             }
         }
@@ -657,6 +684,20 @@ fun SettingsScreen(
                                 }
                             }
                             viewModel.onNotificationToggled(enabled)
+                        }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Rung phản hồi khi hoàn thành")
+                    Switch(
+                        checked = prefs.isHapticEnabled,
+                        onCheckedChange = { enabled ->
+                            viewModel.onHapticToggled(enabled)
                         }
                     )
                 }

@@ -10,10 +10,14 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Calendar
+
+const val ACTION_COMPLETE_HABIT = "com.habitflow.app.ACTION_COMPLETE_HABIT"
+const val ACTION_SNOOZE_HABIT = "com.habitflow.app.ACTION_SNOOZE_HABIT"
 
 // 1. QUẢN LÝ THÔNG BÁO (NOTIFICATION HELPER)
 object NotificationHelper {
@@ -40,6 +44,7 @@ object NotificationHelper {
     fun createReminderNotification(
         context: Context,
         notificationId: Int,
+        habitId: String = "",
         habitName: String,
         note: String? = null
     ): Notification {
@@ -54,7 +59,33 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(context, CHANNEL_ID)
+        val completeIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = ACTION_COMPLETE_HABIT
+            putExtra(AlarmReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(AlarmReceiver.EXTRA_HABIT_ID, habitId)
+        }
+        val completePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId * 10 + 1,
+            completeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val snoozeIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = ACTION_SNOOZE_HABIT
+            putExtra(AlarmReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(AlarmReceiver.EXTRA_HABIT_ID, habitId)
+            putExtra(AlarmReceiver.EXTRA_HABIT_NAME, habitName)
+            putExtra(AlarmReceiver.EXTRA_NOTE, note)
+        }
+        val snoozePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId * 10 + 2,
+            snoozeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle("Nhắc nhở: $habitName")
             .setContentText(if (!note.isNullOrBlank()) note else "Đã đến giờ thực hiện thói quen của bạn!")
@@ -62,16 +93,23 @@ object NotificationHelper {
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .build()
+
+        if (habitId.isNotBlank()) {
+            builder.addAction(0, "✓ Hoàn thành", completePendingIntent)
+        }
+        builder.addAction(0, "⏱ Hoãn 10 phút", snoozePendingIntent)
+
+        return builder.build()
     }
 
     fun showNotification(
         context: Context,
         notificationId: Int,
+        habitId: String = "",
         habitName: String,
         note: String? = null
     ) {
-        val notification = createReminderNotification(context, notificationId, habitName, note)
+        val notification = createReminderNotification(context, notificationId, habitId, habitName, note)
         val manager = context.getSystemService(NotificationManager::class.java)
         manager?.notify(notificationId, notification)
     }
@@ -89,6 +127,7 @@ object ReminderScheduler {
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra(AlarmReceiver.EXTRA_NOTIFICATION_ID, reminder.requestCode)
+            putExtra(AlarmReceiver.EXTRA_HABIT_ID, reminder.habitId)
             putExtra(AlarmReceiver.EXTRA_HABIT_NAME, habitName)
             putExtra(AlarmReceiver.EXTRA_NOTE, note)
         }
@@ -159,21 +198,125 @@ object ReminderScheduler {
 class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val EXTRA_NOTIFICATION_ID = "extra_notification_id"
+        const val EXTRA_HABIT_ID = "extra_habit_id"
         const val EXTRA_HABIT_NAME = "extra_habit_name"
         const val EXTRA_NOTE = "extra_note"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 1)
+        val habitId = intent.getStringExtra(EXTRA_HABIT_ID) ?: ""
         val habitName = intent.getStringExtra(EXTRA_HABIT_NAME) ?: "Thói quen hàng ngày"
         val note = intent.getStringExtra(EXTRA_NOTE)
 
         NotificationHelper.showNotification(
             context = context,
             notificationId = notificationId,
+            habitId = habitId,
             habitName = habitName,
             note = note
         )
+    }
+}
+
+class NotificationActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val notificationId = intent.getIntExtra(AlarmReceiver.EXTRA_NOTIFICATION_ID, 0)
+        val habitId = intent.getStringExtra(AlarmReceiver.EXTRA_HABIT_ID) ?: ""
+        val habitName = intent.getStringExtra(AlarmReceiver.EXTRA_HABIT_NAME) ?: "Thói quen hàng ngày"
+        val note = intent.getStringExtra(AlarmReceiver.EXTRA_NOTE)
+
+        // Đóng notification ngay lập tức
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        if (notificationId != 0) {
+            notificationManager?.cancel(notificationId)
+        }
+
+        when (intent.action) {
+            ACTION_COMPLETE_HABIT -> {
+                if (habitId.isNotBlank()) {
+                    val pendingResult = goAsync()
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val app = context.applicationContext as HabitFlowApplication
+                            val repo = app.repository
+                            val db = app.database
+                            val today = java.time.LocalDate.now()
+                            val todayEpochDay = today.toEpochDay()
+
+                            repo.mark(habitId, OccurrenceStatus.COMPLETED, dateEpochDay = todayEpochDay)
+
+                            val habits = repo.getActiveHabitsDirect()
+                            val occurrences = repo.getOccurrencesDirect()
+                            val stats = HabitStatisticsCalculator.calculate(occurrences, habits, todayEpochDay)
+                            GamificationManager.processCompletion(repo, stats.currentStreak, todayEpochDay)
+
+                            val goals = db.goalDao().all()
+                            goals.filter { it.linkedHabitId == habitId }.forEach { goal ->
+                                repo.addGoalProgress(goal, goal.contributionValue)
+                            }
+
+                            try {
+                                HabitWidget().updateAll(context.applicationContext)
+                                val widgetIntent = Intent("android.appwidget.action.APPWIDGET_UPDATE").apply {
+                                    `package` = context.packageName
+                                }
+                                context.sendBroadcast(widgetIntent)
+                            } catch (_: Exception) {}
+                        } finally {
+                            pendingResult.finish()
+                        }
+                    }
+                }
+            }
+            ACTION_SNOOZE_HABIT -> {
+                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                if (alarmManager != null) {
+                    val snoozeIntent = Intent(context, AlarmReceiver::class.java).apply {
+                        putExtra(AlarmReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+                        putExtra(AlarmReceiver.EXTRA_HABIT_ID, habitId)
+                        putExtra(AlarmReceiver.EXTRA_HABIT_NAME, habitName)
+                        putExtra(AlarmReceiver.EXTRA_NOTE, note)
+                    }
+                    val snoozePendingIntent = PendingIntent.getBroadcast(
+                        context,
+                        notificationId + 100000,
+                        snoozeIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                    val triggerTime = System.currentTimeMillis() + 10 * 60 * 1000L // 10 phút sau
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            if (alarmManager.canScheduleExactAlarms()) {
+                                alarmManager.setExactAndAllowWhileIdle(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerTime,
+                                    snoozePendingIntent
+                                )
+                            } else {
+                                alarmManager.setAndAllowWhileIdle(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerTime,
+                                    snoozePendingIntent
+                                )
+                            }
+                        } else {
+                            alarmManager.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                triggerTime,
+                                snoozePendingIntent
+                            )
+                        }
+                    } catch (_: Exception) {
+                        alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            triggerTime,
+                            snoozePendingIntent
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

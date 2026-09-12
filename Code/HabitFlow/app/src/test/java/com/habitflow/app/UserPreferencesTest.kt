@@ -11,6 +11,7 @@ class UserPreferencesTest {
         val prefs = UserPreferences()
         assertEquals(AppTheme.SYSTEM, prefs.appTheme)
         assertTrue(prefs.isNotificationEnabled)
+        assertTrue(prefs.isHapticEnabled)
     }
 
     @Test
