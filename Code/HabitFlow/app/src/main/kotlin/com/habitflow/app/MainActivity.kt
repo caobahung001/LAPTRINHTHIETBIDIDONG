@@ -90,32 +90,55 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
 
-    val colorScheme = if (isDarkTheme) {
-        darkColorScheme(
-            primary = Color(0xFF39FF14), // Neon Green
-            onPrimary = Color.Black,
-            primaryContainer = Color(0xFF1B3D06),
-            onPrimaryContainer = Color(0xFFC3FFB2),
-            secondaryContainer = Color(0xFF2C2C2E),
-            onSecondaryContainer = Color.White,
-            tertiaryContainer = Color(0xFF3D2F06),
-            onTertiaryContainer = Color(0xFFFFE1AC),
-            errorContainer = Color(0xFF420B0B),
-            onErrorContainer = Color(0xFFFFDAD6),
-            surface = Color(0xFF0F0F0F),
-            onSurface = Color.White,
-            surfaceVariant = Color(0xFF252525),
-            onSurfaceVariant = Color(0xFFCACACA)
-        )
-    } else {
-        lightColorScheme(
-            primary = Color(0xFF2E7D32),
-            primaryContainer = Color(0xFFC8E6C9),
-            onPrimaryContainer = Color(0xFF00390A),
-            secondaryContainer = Color(0xFFF0F0F0),
-            tertiaryContainer = Color(0xFFFFF9C4),
-            errorContainer = Color(0xFFFFDAD6)
-        )
+    val colorTheme = when (val state = settingsUiState) {
+        is SettingsUiState.Success -> state.userPreferences.colorTheme
+        else -> AppColorTheme.GREEN
+    }
+
+    val colorScheme = when {
+        colorTheme == AppColorTheme.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (isDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        isDarkTheme -> {
+            val (prim, primCont, onPrimCont) = when (colorTheme) {
+                AppColorTheme.BLUE -> Triple(Color(0xFF00E5FF), Color(0xFF004D61), Color(0xFFB8EAFF))
+                AppColorTheme.PURPLE -> Triple(Color(0xFFD0BCFF), Color(0xFF4F378B), Color(0xFFEADDFF))
+                AppColorTheme.ORANGE -> Triple(Color(0xFFFF9100), Color(0xFF5B3000), Color(0xFFFFDCC2))
+                else -> Triple(Color(0xFF39FF14), Color(0xFF1B3D06), Color(0xFFC3FFB2))
+            }
+            darkColorScheme(
+                primary = prim,
+                onPrimary = Color.Black,
+                primaryContainer = primCont,
+                onPrimaryContainer = onPrimCont,
+                secondaryContainer = Color(0xFF2C2C2E),
+                onSecondaryContainer = Color.White,
+                tertiaryContainer = Color(0xFF3D2F06),
+                onTertiaryContainer = Color(0xFFFFE1AC),
+                errorContainer = Color(0xFF420B0B),
+                onErrorContainer = Color(0xFFFFDAD6),
+                surface = Color(0xFF0F0F0F),
+                onSurface = Color.White,
+                surfaceVariant = Color(0xFF252525),
+                onSurfaceVariant = Color(0xFFCACACA)
+            )
+        }
+        else -> {
+            val (prim, primCont, onPrimCont) = when (colorTheme) {
+                AppColorTheme.BLUE -> Triple(Color(0xFF00687A), Color(0xFF9EEFFE), Color(0xFF001F26))
+                AppColorTheme.PURPLE -> Triple(Color(0xFF6750A4), Color(0xFFEADDFF), Color(0xFF21005D))
+                AppColorTheme.ORANGE -> Triple(Color(0xFF944A00), Color(0xFFFFDCC2), Color(0xFF301400))
+                else -> Triple(Color(0xFF2E7D32), Color(0xFFC8E6C9), Color(0xFF00390A))
+            }
+            lightColorScheme(
+                primary = prim,
+                primaryContainer = primCont,
+                onPrimaryContainer = onPrimCont,
+                secondaryContainer = Color(0xFFF0F0F0),
+                tertiaryContainer = Color(0xFFFFF9C4),
+                errorContainer = Color(0xFFFFDAD6)
+            )
+        }
     }
 
     val view = androidx.compose.ui.platform.LocalView.current

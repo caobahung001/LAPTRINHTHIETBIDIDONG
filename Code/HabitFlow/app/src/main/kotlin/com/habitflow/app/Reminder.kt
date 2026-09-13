@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -46,7 +47,8 @@ object NotificationHelper {
         notificationId: Int,
         habitId: String = "",
         habitName: String,
-        note: String? = null
+        note: String? = null,
+        vibrate: Boolean = true
     ): Notification {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -90,9 +92,15 @@ object NotificationHelper {
             .setContentTitle("Nhắc nhở: $habitName")
             .setContentText(if (!note.isNullOrBlank()) note else "Đã đến giờ thực hiện thói quen của bạn!")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+
+        if (vibrate) {
+            builder.setDefaults(NotificationCompat.DEFAULT_ALL)
+        } else {
+            builder.setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_LIGHTS)
+            builder.setVibrate(longArrayOf(0L))
+        }
 
         if (habitId.isNotBlank()) {
             builder.addAction(0, "✓ Hoàn thành", completePendingIntent)
@@ -107,9 +115,10 @@ object NotificationHelper {
         notificationId: Int,
         habitId: String = "",
         habitName: String,
-        note: String? = null
+        note: String? = null,
+        vibrate: Boolean = true
     ) {
-        val notification = createReminderNotification(context, notificationId, habitId, habitName, note)
+        val notification = createReminderNotification(context, notificationId, habitId, habitName, note, vibrate)
         val manager = context.getSystemService(NotificationManager::class.java)
         manager?.notify(notificationId, notification)
     }
@@ -209,13 +218,32 @@ class AlarmReceiver : BroadcastReceiver() {
         val habitName = intent.getStringExtra(EXTRA_HABIT_NAME) ?: "Thói quen hàng ngày"
         val note = intent.getStringExtra(EXTRA_NOTE)
 
-        NotificationHelper.showNotification(
-            context = context,
-            notificationId = notificationId,
-            habitId = habitId,
-            habitName = habitName,
-            note = note
-        )
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val prefs = UserPreferencesDataSource(context.applicationContext).userPreferencesStream.first()
+                if (prefs.isNotificationEnabled) {
+                    NotificationHelper.showNotification(
+                        context = context,
+                        notificationId = notificationId,
+                        habitId = habitId,
+                        habitName = habitName,
+                        note = note,
+                        vibrate = prefs.isReminderVibrateEnabled
+                    )
+                }
+            } catch (_: Exception) {
+                NotificationHelper.showNotification(
+                    context = context,
+                    notificationId = notificationId,
+                    habitId = habitId,
+                    habitName = habitName,
+                    note = note
+                )
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 }
 
