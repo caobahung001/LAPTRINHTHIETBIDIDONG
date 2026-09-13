@@ -29,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -88,32 +90,55 @@ fun HabitFlowApp(viewModel: MainViewModel) {
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
 
-    val colorScheme = if (isDarkTheme) {
-        darkColorScheme(
-            primary = Color(0xFF39FF14), // Neon Green
-            onPrimary = Color.Black,
-            primaryContainer = Color(0xFF1B3D06),
-            onPrimaryContainer = Color(0xFFC3FFB2),
-            secondaryContainer = Color(0xFF2C2C2E),
-            onSecondaryContainer = Color.White,
-            tertiaryContainer = Color(0xFF3D2F06),
-            onTertiaryContainer = Color(0xFFFFE1AC),
-            errorContainer = Color(0xFF420B0B),
-            onErrorContainer = Color(0xFFFFDAD6),
-            surface = Color(0xFF0F0F0F),
-            onSurface = Color.White,
-            surfaceVariant = Color(0xFF252525),
-            onSurfaceVariant = Color(0xFFCACACA)
-        )
-    } else {
-        lightColorScheme(
-            primary = Color(0xFF2E7D32),
-            primaryContainer = Color(0xFFC8E6C9),
-            onPrimaryContainer = Color(0xFF00390A),
-            secondaryContainer = Color(0xFFF0F0F0),
-            tertiaryContainer = Color(0xFFFFF9C4),
-            errorContainer = Color(0xFFFFDAD6)
-        )
+    val colorTheme = when (val state = settingsUiState) {
+        is SettingsUiState.Success -> state.userPreferences.colorTheme
+        else -> AppColorTheme.GREEN
+    }
+
+    val colorScheme = when {
+        colorTheme == AppColorTheme.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (isDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        isDarkTheme -> {
+            val (prim, primCont, onPrimCont) = when (colorTheme) {
+                AppColorTheme.BLUE -> Triple(Color(0xFF00E5FF), Color(0xFF004D61), Color(0xFFB8EAFF))
+                AppColorTheme.PURPLE -> Triple(Color(0xFFD0BCFF), Color(0xFF4F378B), Color(0xFFEADDFF))
+                AppColorTheme.ORANGE -> Triple(Color(0xFFFF9100), Color(0xFF5B3000), Color(0xFFFFDCC2))
+                else -> Triple(Color(0xFF39FF14), Color(0xFF1B3D06), Color(0xFFC3FFB2))
+            }
+            darkColorScheme(
+                primary = prim,
+                onPrimary = Color.Black,
+                primaryContainer = primCont,
+                onPrimaryContainer = onPrimCont,
+                secondaryContainer = Color(0xFF2C2C2E),
+                onSecondaryContainer = Color.White,
+                tertiaryContainer = Color(0xFF3D2F06),
+                onTertiaryContainer = Color(0xFFFFE1AC),
+                errorContainer = Color(0xFF420B0B),
+                onErrorContainer = Color(0xFFFFDAD6),
+                surface = Color(0xFF0F0F0F),
+                onSurface = Color.White,
+                surfaceVariant = Color(0xFF252525),
+                onSurfaceVariant = Color(0xFFCACACA)
+            )
+        }
+        else -> {
+            val (prim, primCont, onPrimCont) = when (colorTheme) {
+                AppColorTheme.BLUE -> Triple(Color(0xFF00687A), Color(0xFF9EEFFE), Color(0xFF001F26))
+                AppColorTheme.PURPLE -> Triple(Color(0xFF6750A4), Color(0xFFEADDFF), Color(0xFF21005D))
+                AppColorTheme.ORANGE -> Triple(Color(0xFF944A00), Color(0xFFFFDCC2), Color(0xFF301400))
+                else -> Triple(Color(0xFF2E7D32), Color(0xFFC8E6C9), Color(0xFF00390A))
+            }
+            lightColorScheme(
+                primary = prim,
+                primaryContainer = primCont,
+                onPrimaryContainer = onPrimCont,
+                secondaryContainer = Color(0xFFF0F0F0),
+                tertiaryContainer = Color(0xFFFFF9C4),
+                errorContainer = Color(0xFFFFDAD6)
+            )
+        }
     }
 
     val view = androidx.compose.ui.platform.LocalView.current
@@ -180,8 +205,9 @@ fun HabitFlowApp(viewModel: MainViewModel) {
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
+                val isHapticEnabled = (settingsUiState as? SettingsUiState.Success)?.userPreferences?.isHapticEnabled ?: true
                 when (tab) {
-                    0 -> TodayScreen(viewModel, onNavigateToHabits = { tab = 1 })
+                    0 -> TodayScreen(viewModel, isHapticEnabled = isHapticEnabled, onNavigateToHabits = { tab = 1 })
                     1 -> HabitsScreen(viewModel)
                     2 -> GoalsScreen(viewModel)
                     3 -> StatisticsScreen(viewModel)
@@ -219,12 +245,21 @@ fun ScreenHeader(
 }
 
 @Composable
-private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
+private fun TodayScreen(
+    vm: MainViewModel,
+    isHapticEnabled: Boolean = true,
+    onNavigateToHabits: () -> Unit
+) {
     val habits by vm.habits.collectAsStateWithLifecycle()
     val occurrences by vm.occurrences.collectAsStateWithLifecycle()
     val userStats by vm.userStats.collectAsStateWithLifecycle()
     val testOffset by vm.testDateOffset.collectAsStateWithLifecycle()
     var showLevelDetail by remember { mutableStateOf(false) }
+
+    val haptic = LocalHapticFeedback.current
+    var prevLevel by remember { mutableStateOf<Int?>(null) }
+    var prevCompletedAll by remember { mutableStateOf(false) }
+    var showConfetti by remember { mutableStateOf(false) }
 
     val today = remember(testOffset) { LocalDate.now().plusDays(testOffset) }
     val todayEpochDay = remember(today) { today.toEpochDay() }
@@ -250,6 +285,23 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
             .replaceFirstChar { it.uppercase() }
     }
 
+    val isAllCompleted = filteredHabits.isNotEmpty() && completedToday == filteredHabits.size
+
+    LaunchedEffect(userStats?.level) {
+        val currentLvl = userStats?.level
+        if (prevLevel != null && currentLvl != null && currentLvl > prevLevel!!) {
+            showConfetti = true
+        }
+        prevLevel = currentLvl
+    }
+
+    LaunchedEffect(isAllCompleted) {
+        if (isAllCompleted && !prevCompletedAll) {
+            showConfetti = true
+        }
+        prevCompletedAll = isAllCompleted
+    }
+
     if (showLevelDetail && userStats != null) {
         LevelDetailDialog(
             stats = userStats!!,
@@ -258,110 +310,122 @@ private fun TodayScreen(vm: MainViewModel, onNavigateToHabits: () -> Unit) {
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(if (filteredHabits.size <= 2 && filteredHabits.isNotEmpty()) 24.dp else 14.dp)
-    ) {
-        item {
-            ScreenHeader(
-                eyebrow = dateText,
-                title = "Hôm nay",
-                subtitle = if (filteredHabits.isEmpty()) "Một ngày nhẹ nhàng cũng là một ngày có tiến bộ." else "$completedToday/${filteredHabits.size} thói quen đã hoàn thành",
-                trailing = {
-                    TextButton(onClick = vm::advanceTestDay) {
-                        Text("+1 ngày test", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            )
-        }
-
-        userStats?.let { stats ->
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(if (filteredHabits.size <= 2 && filteredHabits.isNotEmpty()) 24.dp else 14.dp)
+        ) {
             item {
-                LevelHeroCard(
-                    stats = stats,
-                    dailyProgress = dailyProgress,
-                    completedToday = completedToday,
-                    totalToday = filteredHabits.size,
-                    onClick = { showLevelDetail = true }
-                )
-            }
-        }
-
-        if (filteredHabits.isEmpty()) {
-            item {
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("🌱", style = MaterialTheme.typography.displaySmall)
-                        Spacer(Modifier.height(10.dp))
-                        Text("Chưa có việc cần làm hôm nay", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Tạo thói quen đầu tiên để HabitFlow bắt đầu theo dõi tiến độ cho bạn.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = onNavigateToHabits,
-                            shape = RoundedCornerShape(14.dp)
-                        ) { Text("Thêm thói quen") }
-                    }
-                }
-            }
-        } else {
-            item { SectionTitle("Việc cần làm", "Tập trung vào từng việc nhỏ") }
-            items(filteredHabits, key = { it.id }) { habit ->
-                HabitTodayCard(
-                    habit = habit,
-                    occurrence = todayOccurrences[habit.id],
-                    streakFreezes = userStats?.streakFreezes ?: 0,
-                    skipsAvailable = userStats?.skipsAvailable ?: 0,
-                    onComplete = { vm.mark(habit.id, OccurrenceStatus.COMPLETED) },
-                    onSkip = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
-                    onFreeze = { vm.useStreakFreeze(habit.id) },
-                    onUseSkip = { vm.useSkip(habit.id) },
-                    onReset = { vm.unmark(habit.id, todayEpochDay) },
-                    modifier = if (filteredHabits.size <= 2) Modifier.heightIn(min = 130.dp) else Modifier
-                )
-            }
-        }
-
-        if (tomorrowHabits.isNotEmpty()) {
-            item { SectionTitle("Ngày mai", "Chuẩn bị trước để giữ nhịp") }
-            items(tomorrowHabits, key = { "tomorrow_${it.id}" }) { habit ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                            Text("→", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.primary)
+                ScreenHeader(
+                    eyebrow = dateText,
+                    title = "Hôm nay",
+                    subtitle = if (filteredHabits.isEmpty()) "Một ngày nhẹ nhàng cũng là một ngày có tiến bộ." else "$completedToday/${filteredHabits.size} thói quen đã hoàn thành",
+                    trailing = {
+                        TextButton(onClick = vm::advanceTestDay) {
+                            Text("+1 ngày test", color = MaterialTheme.colorScheme.error)
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(habit.name, fontWeight = FontWeight.SemiBold)
-                            if (habit.description.isNotBlank()) {
-                                Text(habit.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                )
+            }
+
+            userStats?.let { stats ->
+                item {
+                    LevelHeroCard(
+                        stats = stats,
+                        dailyProgress = dailyProgress,
+                        completedToday = completedToday,
+                        totalToday = filteredHabits.size,
+                        onClick = { showLevelDetail = true }
+                    )
+                }
+            }
+
+            if (filteredHabits.isEmpty()) {
+                item {
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("🌱", style = MaterialTheme.typography.displaySmall)
+                            Spacer(Modifier.height(10.dp))
+                            Text("Chưa có việc cần làm hôm nay", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Tạo thói quen đầu tiên để HabitFlow bắt đầu theo dõi tiến độ cho bạn.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = onNavigateToHabits,
+                                shape = RoundedCornerShape(14.dp)
+                            ) { Text("Thêm thói quen") }
+                        }
+                    }
+                }
+            } else {
+                item { SectionTitle("Việc cần làm", "Tập trung vào từng việc nhỏ") }
+                items(filteredHabits, key = { it.id }) { habit ->
+                    HabitTodayCard(
+                        habit = habit,
+                        occurrence = todayOccurrences[habit.id],
+                        streakFreezes = userStats?.streakFreezes ?: 0,
+                        skipsAvailable = userStats?.skipsAvailable ?: 0,
+                        onComplete = {
+                            if (isHapticEnabled) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
+                            vm.mark(habit.id, OccurrenceStatus.COMPLETED)
+                        },
+                        onSkip = { vm.mark(habit.id, OccurrenceStatus.SKIPPED) },
+                        onFreeze = { vm.useStreakFreeze(habit.id) },
+                        onUseSkip = { vm.useSkip(habit.id) },
+                        onReset = { vm.unmark(habit.id, todayEpochDay) },
+                        modifier = if (filteredHabits.size <= 2) Modifier.heightIn(min = 130.dp) else Modifier
+                    )
+                }
+            }
+
+            if (tomorrowHabits.isNotEmpty()) {
+                item { SectionTitle("Ngày mai", "Chuẩn bị trước để giữ nhịp") }
+                items(tomorrowHabits, key = { "tomorrow_${it.id}" }) { habit ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                                Text("→", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(habit.name, fontWeight = FontWeight.SemiBold)
+                                if (habit.description.isNotBlank()) {
+                                    Text(habit.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            habit.scheduledTime?.let { TimePill(it) }
                         }
-                        habit.scheduledTime?.let { TimePill(it) }
                     }
                 }
             }
         }
+
+        ConfettiEffect(
+            visible = showConfetti,
+            onFinished = { showConfetti = false }
+        )
     }
 }
 

@@ -124,3 +124,103 @@ class BackupManager(
         }
     }
 }
+
+// 4. CHIA SẺ BẢN SAO LƯU NHANH QUA INTENT (FILEPROVIDER)
+object BackupSharer {
+    suspend fun shareBackup(context: Context, database: HabitFlowDatabase) {
+        val backupManager = BackupManager(context, database)
+        val jsonText = backupManager.exportBackup()
+
+        val fileName = "habitflow_backup_${System.currentTimeMillis() / 1000}.json"
+        val cacheFile = java.io.File(context.cacheDir, fileName)
+        cacheFile.writeText(jsonText, Charsets.UTF_8)
+
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            cacheFile
+        )
+
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            clipData = android.content.ClipData.newRawUri(null, uri)
+            putExtra(android.content.Intent.EXTRA_SUBJECT, "Bản sao lưu HabitFlow")
+            putExtra(
+                android.content.Intent.EXTRA_TEXT,
+                "Đính kèm bản sao lưu dữ liệu HabitFlow ngày " +
+                    java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+            )
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        val chooser = android.content.Intent.createChooser(shareIntent, "Chia sẻ bản sao lưu HabitFlow qua...")
+        chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(chooser)
+    }
+}
+
+// 5. XUẤT BÁO CÁO TIẾN ĐỘ THÓI QUEN RA FILE CSV (EXCEL)
+object ReportExporter {
+    suspend fun generateCsvReport(database: HabitFlowDatabase): String {
+        val habits = database.habitDao().all().associateBy { it.id }
+        val occurrences = database.occurrenceDao().all()
+
+        val sb = StringBuilder()
+        // Ký tự BOM (\uFEFF) giúp Microsoft Excel hiển thị tiếng Việt UTF-8 chính xác
+        sb.append('\uFEFF')
+        sb.append("Tên thói quen,Ngày thực hiện,Trạng thái,Giá trị hoàn thành,Ghi chú\n")
+
+        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+        occurrences.sortedByDescending { it.scheduledEpochDay }.forEach { occ ->
+            val habitName = (habits[occ.habitId]?.name ?: "Thói quen ID: ${occ.habitId}").replace("\"", "\"\"")
+            val dateStr = java.time.LocalDate.ofEpochDay(occ.scheduledEpochDay).format(dateFormatter)
+            val statusStr = when (occ.status) {
+                OccurrenceStatus.COMPLETED -> "Hoàn thành"
+                OccurrenceStatus.SKIPPED -> "Bỏ qua"
+                OccurrenceStatus.MISSED -> "Bỏ lỡ"
+                OccurrenceStatus.FROZEN -> "Đóng băng"
+                OccurrenceStatus.PENDING -> "Chưa thực hiện"
+            }
+            val valueStr = occ.completedValue?.toString() ?: ""
+            val noteStr = (occ.note ?: "").replace("\"", "\"\"")
+
+            sb.append("\"$habitName\",")
+            sb.append("\"$dateStr\",")
+            sb.append("\"$statusStr\",")
+            sb.append("\"$valueStr\",")
+            sb.append("\"$noteStr\"\n")
+        }
+        return sb.toString()
+    }
+
+    suspend fun shareCsvReport(context: Context, database: HabitFlowDatabase) {
+        val csvText = generateCsvReport(database)
+        val fileName = "habitflow_report_${System.currentTimeMillis() / 1000}.csv"
+        val cacheFile = java.io.File(context.cacheDir, fileName)
+        cacheFile.writeText(csvText, Charsets.UTF_8)
+
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            cacheFile
+        )
+
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            clipData = android.content.ClipData.newRawUri(null, uri)
+            putExtra(android.content.Intent.EXTRA_SUBJECT, "Báo cáo tiến độ thói quen HabitFlow")
+            putExtra(
+                android.content.Intent.EXTRA_TEXT,
+                "Đính kèm báo cáo tiến độ thói quen định dạng CSV (Excel) xuất từ HabitFlow."
+            )
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        val chooser = android.content.Intent.createChooser(shareIntent, "Xuất báo cáo CSV qua...")
+        chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(chooser)
+    }
+}
